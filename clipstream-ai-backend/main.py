@@ -1,5 +1,8 @@
 #imports
+import json
 import pathlib
+import subprocess
+import time
 import uuid
 import modal  # Modal lets us run Python code in the cloud with GPUs
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials  # Handles API security with tokens
@@ -7,6 +10,8 @@ from fastapi import Depends, HTTPException, status  # FastAPI framework for buil
 from pydantic import BaseModel  # Helps validate and structure our data
 import os
 import boto3  # AWS SDK for talking to S3 storage
+import whisperx
+
 
 # This class defines what data we expect when someone wants to process a video
 # like a form that users need to fill out
@@ -61,7 +66,41 @@ class clipstream_ai:
         # This runs once when our service starts up
         # It's like turning on a computer and loading all the programs we need
         print("Loading models")
-        pass  # We'll add actual model loading code here later
+        self.whisperx_model = whisperx.load_model("large-v2", device="cuda", compute_type="float16")
+
+        self.alignment_model, self.metadata = whisperx.load_align_model(language_code="en", device="cuda")
+
+        print("Transcription models loaded...")
+
+    # Function to transcribe the video using the whisperx 
+    def transcribe_video(self, base_dir: str, video_path: str) -> str:
+        audio_path = base_dir / "audio.wav"
+        extract_cmd = f"ffmpeg -i {video_path} -vn -acodec pcm_s16le -ar 16000 -ac 1 {audio_path}"
+        subprocess.run(extract_cmd, shell=True, check=True, capture_output=True)
+
+        print("Starting transcription with WhisperX...")
+        start_time = time.time()
+
+        audio = whisperx.load_audio(str(audio_path))
+        result = self.whisperx_model.transcribe(audio, batch_size=16)
+
+        result = whisperx.align(result["segments"], self.alignment_model, self.metadata, audio, device="cuda", return_char_alignments=False)
+
+        duration = time.time() - start_time
+        print("Transcription and alignment took " + str(duration) + "seconds")
+
+        segments = []
+
+        if "word_segments" in result:
+            for word_segment in result["word_segments"]:
+                segments.append({
+                    "start": word_segment["start"],
+                    "end": word_segment["end"],
+                    "word": word_segment["word"],
+                })
+        
+        return json.dumps(segments)
+
 
     @modal.fastapi_endpoint(method="POST")
     def process_video(self, request: ProcessVideoRequest, token: HTTPAuthorizationCredentials = Depends(auth_scheme)):
@@ -88,6 +127,10 @@ class clipstream_ai:
         video_path = base_dir / "input.mp4"  # Save it as "input.mp4" in our folder
         s3_client = boto3.client("s3")  # Connect to AWS S3
         s3_client.download_file("clipstream-ai", s3_key, str(video_path))  # Download the video
+
+        #Transcriptions
+        transcript_segments_json = self.transcribe_video(base_dir, video_path)
+        transcript_segments = json.loads(transcript_segments_json)
 
         # Show what files we have in our working folder (for debugging)
         print(os.listdir(base_dir))
