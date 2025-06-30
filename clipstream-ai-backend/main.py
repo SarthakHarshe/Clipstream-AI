@@ -1,5 +1,6 @@
 #imports
 from codecs import ignore_errors
+import enum
 import glob
 import json
 from ntpath import exists
@@ -18,6 +19,7 @@ import os
 import boto3  # AWS SDK for talking to S3 storage
 import whisperx
 from google import genai
+import numpy as np
 
 
 # This class defines what data we expect when someone wants to process a video
@@ -66,6 +68,22 @@ def create_vertical_video(tracks, scores, pyframes_path, pyavi_path, audio_path,
     # Get all frame files and sort them chronologically
     flist = glob.glob(os.path.join(pyframes_path, "*.jpg"))
     flist.sort()
+
+    #Step1: Looping through the tracks
+    #Track: Sqeuence of detections of the same face across consecutive frames
+    #Each track contains which frames the face appears in, the position (x,y), size(s), and other properties of the face in each frame
+    #Score indication how likely it is, that this face is speaking in each frame.
+    faces = [[] for _ in range(len(flist))]
+
+    for tidx, track in enumerate(tracks):
+        score_array = scores[tidx]
+        for fidx, frame in enumerate(track["track"]["frame"].tolist()):
+            slice_start = max(fidx - 30, 0)
+            slice_end = min(fidx + 30, len(score_array))
+            score_slice = score_array[slice_start:slice_end]
+            avg_score = float(np.mean(score_slice) if len(score_slice) > 0 else 0)
+
+            faces[frame].append({'track': tidx, 'score': avg_score, 's': track['proc_track']["s"][fidx], 'x': track['proc_track']["x"][fidx], 'y': track['proc_track']["y"][fidx]}) 
 
 # Function to process individual video clips
 # This function handles the complete pipeline for creating a single clip:
