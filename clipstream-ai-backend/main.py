@@ -558,7 +558,7 @@ def main():
 
     # Prepare the test data - this is like filling out a form
     payload = {
-        "s3_key": "test1/Blocks5mins.mp4"  # The video file we want to process
+        "s3_key": "test2/Blocks30mins.mp4"  # The video file we want to process
     }
 
     # Set up the request headers (like putting a stamp on an envelope)
