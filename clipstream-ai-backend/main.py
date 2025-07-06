@@ -26,6 +26,7 @@ import numpy as np
 from tqdm import tqdm
 import cv2
 import ffmpegcv
+import pysubs2
 
 
 # This class defines what data we expect when someone wants to process a video
@@ -167,6 +168,131 @@ def create_vertical_video(tracks, scores, pyframes_path, pyavi_path, audio_path,
                       f"{output_path}")
     subprocess.run(ffmpeg_command, shell=True, check=True, text=True)
 
+def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, clip_end: float,clip_video_path: str, output_path: str, max_words: int = 5):
+    """
+    Creates subtitles for a video clip using transcript segments and embeds them using ffmpeg.
+    
+    This function takes word-level transcript segments and groups them into subtitle lines
+    that are displayed on the video. It creates an ASS subtitle file and then uses ffmpeg
+    to burn the subtitles directly into the video.
+    
+    Args:
+        transcript_segments: List of word segments with start/end times and text
+        clip_start: Start time of the clip in seconds
+        clip_end: End time of the clip in seconds  
+        clip_video_path: Path to the input video file
+        output_path: Path where the video with subtitles will be saved
+        max_words: Maximum number of words per subtitle line (default: 5)
+    """
+    # Create temporary directory for subtitle files
+    temp_dir= os.path.dirname(output_path)
+    subtitle_path = os.path.join(temp_dir, "temp_subtitles.ass")
+
+    # Filter transcript segments to only include words that fall within the clip timeframe
+    # This ensures we only show subtitles for words that are actually spoken in this clip
+    clip_segments = [segment for segment in transcript_segments 
+                     if segment.get("start") is not None
+                     and segment.get("end") is not None
+                     and segment.get("end") > clip_start
+                     and segment.get("start") < clip_end]
+    
+    # Initialize variables for building subtitle lines
+    subtitles = []  # Final list of subtitle entries (start_time, end_time, text)
+    current_words = []  # Words being collected for current subtitle line
+    current_start = None  # Start time of current subtitle line
+    current_end = None  # End time of current subtitle line
+
+    # Process each word segment to group them into subtitle lines
+    for segment in clip_segments:
+        word = segment.get("word", "").strip()
+        seg_start = segment.get("start")
+        seg_end = segment.get("end")
+
+        # Skip invalid segments (missing word or timestamps)
+        if not word or seg_start is None or seg_end is None:
+            continue
+        
+        # Convert absolute timestamps to relative timestamps within the clip
+        # This ensures subtitles are timed correctly relative to the clip start
+        start_rel = max(0.0, seg_start - clip_start)
+        end_rel = max(0.0, seg_end - clip_start)
+
+        # Skip words that end before the clip starts
+        if end_rel <= 0:
+            continue
+        
+        # If this is the first word, start a new subtitle line
+        if not current_words:
+            current_start = start_rel
+            current_end = end_rel
+            current_words = [word]
+        # If we've reached the maximum words per line, finalize current line and start new one
+        elif len(current_words) >= max_words:
+            subtitles.append((current_start, current_end, ' '.join(current_words)))
+            current_words = [word]
+            current_start = start_rel
+            current_end = end_rel
+        # Otherwise, add word to current line and extend the end time
+        else:
+             current_words.append(word)
+             current_end = end_rel
+
+    # Don't forget to add the last subtitle line if there are remaining words
+    if current_words:
+        subtitles.append((current_start, current_end, ' '.join(current_words)))
+
+    # Create ASS subtitle file using pysubs2 library
+    # ASS (Advanced SubStation Alpha) is a subtitle format that supports rich styling
+    subs = pysubs2.SSAFile()
+
+    # Configure subtitle file metadata for vertical video format (1080x1920)
+    subs.info["WrapStyle"] = 0  # No word wrapping
+    subs.info["ScaledBorderAndShadow"] = "yes"  # Scale borders and shadows with video
+    subs.info["PlayResX"] = 1080  # Video width
+    subs.info["PlayResY"] = 1920  # Video height  
+    subs.info["ScriptType"] = "v4.00+"  # ASS format version
+
+    # Create subtitle styling for optimal readability on vertical videos
+    style_name = "Default"
+    new_style = pysubs2.SSAStyle()
+    new_style.fontname = "Anton"
+    new_style.fontsize = 140
+    new_style.primarycolor = pysubs2.Color(255, 255, 255)
+    new_style.outline = 2.0
+    new_style.shadow = 2.0
+    new_style.shadowcolor = pysubs2.Color(0, 0, 0, 128)
+    new_style.alignment = 2
+    new_style.marginl = 50
+    new_style.marginr = 50
+    new_style.marginv = 50
+    new_style.spacing = 0.0
+
+    # Apply the style to the subtitle file
+    subs.styles[style_name] = new_style
+
+    # Add each subtitle line to the file with proper timing
+    for i, (start, end, text) in enumerate(subtitles):
+        # Convert seconds to ASS time format (H:MM:SS.cc)
+        start_time = pysubs2.make_time(s=start)
+        end_time = pysubs2.make_time(s=end)
+        # Create subtitle event with timing, text, and styling
+        line = pysubs2.SSAEvent(start=start_time, end=end_time, text=text, style=style_name)
+        subs.events.append(line)
+
+    # Save the subtitle file to disk
+    subs.save(subtitle_path)
+        
+    # Use ffmpeg to burn subtitles directly into the video
+    # This creates a new video file with subtitles permanently embedded
+    # -y: Overwrite output file if it exists
+    # -i: Input video file
+    # -vf "ass=subtitle_path": Apply ASS subtitle file as video filter
+    # -c:v h264: Use H.264 video codec
+    # -preset fast: Fast encoding preset for reasonable speed/quality balance
+    # -crf 23: Constant Rate Factor for quality control (lower = better quality)
+    ffmpeg_cmd = (f"ffmpeg -y -i {clip_video_path} -vf \"ass={subtitle_path}\" "
+                  f"-c:v h264 -preset fast -crf 23 {output_path}")
+    subprocess.run(ffmpeg_cmd, shell=True, check=True)
 
 
 # Function to process individual video clips
@@ -249,9 +375,13 @@ def process_clip(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_k
     cvv_end_time = time.time()
 
     print(f"Clip {clip_index} vertical video creation time: {cvv_end_time - cvv_start_time:.2f} seconds")
+
+    # Step 6: Add subtitles to the vertical video
+    # This creates a final video with embedded subtitles for better accessibility and engagement
+    create_subtitles_with_ffmpeg(transcript_segments, start_time, end_time, vertical_mp4_path, subtitle_output_path, max_words=5)
     
     s3_client = boto3.client("s3")
-    s3_client.upload_file(vertical_mp4_path, "clipstream-ai", output_s3_key)
+    s3_client.upload_file(subtitle_output_path, "clipstream-ai", output_s3_key)
 
 
 # This is our main AI processing service that runs in the cloud
