@@ -1,10 +1,27 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
+/**
+ * Prisma Client Generator Configuration
+ * 
+ * This section configures how Prisma generates the client library.
+ * The prisma-client-js provider generates a TypeScript/JavaScript client
+ * that provides type-safe database access throughout the application.
+ */
 generator client {
     provider = "prisma-client-js"
 }
 
+/**
+ * Database Configuration
+ * 
+ * This section defines the database connection and provider.
+ * Currently using SQLite for development, but can be easily changed
+ * to PostgreSQL, MySQL, or other supported databases for production.
+ * 
+ * Note: When switching to MySQL or SQLServer, uncomment the @db.Text
+ * annotations in the Account model for proper field type handling.
+ */
 datasource db {
     provider = "sqlite"
     // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
@@ -14,19 +31,49 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
+/**
+ * Post Model
+ * 
+ * Represents blog posts or content created by users in the application.
+ * This is a basic example model that demonstrates user relationships
+ * and common database patterns like timestamps and indexing.
+ * 
+ * Relationships:
+ * - belongs to User (createdBy)
+ * 
+ * Indexes:
+ * - name: Optimizes queries that search by post name
+ */
 model Post {
     id        Int      @id @default(autoincrement())
     name      String
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
+    // Relationship to the user who created this post
     createdBy   User   @relation(fields: [createdById], references: [id])
     createdById String
 
+    // Index for efficient name-based queries
     @@index([name])
 }
 
-// Necessary for Next auth
+/**
+ * Account Model (NextAuth.js Required)
+ * 
+ * This model is required by NextAuth.js to store OAuth account information.
+ * It links external authentication providers (like Discord, GitHub) to user accounts
+ * in our system. Each user can have multiple accounts from different providers.
+ * 
+ * Key Features:
+ * - Stores OAuth tokens and provider-specific data
+ * - Links to User model through userId
+ * - Unique constraint ensures one account per provider per user
+ * - Cascade deletion removes account when user is deleted
+ * 
+ * Note: The @db.Text annotations are commented out for SQLite but should be
+ * uncommented when using MySQL or SQLServer for proper field type handling.
+ */
 model Account {
     id                       String  @id @default(cuid())
     userId                   String
@@ -43,9 +90,21 @@ model Account {
     user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
     refresh_token_expires_in Int?
 
+    // Ensures one account per provider per user
     @@unique([provider, providerAccountId])
 }
 
+/**
+ * Session Model (NextAuth.js Required)
+ * 
+ * Stores user session information for NextAuth.js. Sessions allow users
+ * to remain logged in across browser sessions and page refreshes.
+ * 
+ * Key Features:
+ * - Unique session tokens for security
+ * - Automatic expiration handling
+ * - Links to User model with cascade deletion
+ */
 model Session {
     id           String   @id @default(cuid())
     sessionToken String   @unique
@@ -54,21 +113,135 @@ model Session {
     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+/**
+ * User Model
+ * 
+ * The central user model that represents users in the application.
+ * It includes authentication data, profile information, and relationships
+ * to other models in the system.
+ * 
+ * Key Features:
+ * - Unique email addresses for user identification
+ * - Credit system for limiting usage
+ * - Stripe integration for payments
+ * - Relationships to posts, files, and clips
+ * 
+ * Relationships:
+ * - has many Account (OAuth accounts)
+ * - has many Session (active sessions)
+ * - has many Post (created posts)
+ * - has many UploadedFile (uploaded files)
+ * - has many Clip (generated clips)
+ */
 model User {
     id            String    @id @default(cuid())
     name          String?
     email         String?   @unique
     emailVerified DateTime?
+    password      String
+    credits       Int @default(10)
+    stripeCustomerId String? @unique
     image         String?
+    
+    // NextAuth.js relationships
     accounts      Account[]
     sessions      Session[]
+    
+    // Application relationships
     posts         Post[]
+    uploadedFiles UploadedFile[]
+    clips Clip[]
 }
 
+/**
+ * UploadedFile Model
+ * 
+ * Represents files uploaded by users for video processing.
+ * This model tracks the upload status, S3 storage location,
+ * and relationship to generated clips.
+ * 
+ * Status Values:
+ * - "queued": File uploaded, waiting for processing
+ * - "processing": Currently being processed
+ * - "processed": Successfully processed
+ * - "no_credits": User doesn't have enough credits
+ * 
+ * Relationships:
+ * - belongs to User (uploader)
+ * - has many Clip (generated clips)
+ * 
+ * Indexes:
+ * - s3Key: Optimizes S3 operations and file lookups
+ */
+model UploadedFile {
+    id String @id @default(cuid())
+    s3Key String
+    displayName String?
+    uploaded Boolean @default(false)
+    status String @default("queued") //processed, processing, no credits
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Relationship to generated clips
+    clips Clip[]
+
+    // Relationship to user who uploaded the file
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    // Index for efficient S3 key lookups
+    @@index([s3Key])
+}
+
+/**
+ * Clip Model
+ * 
+ * Represents video clips generated from uploaded files.
+ * Each clip is a processed video segment stored in S3
+ * and linked to both the original file and the user.
+ * 
+ * Relationships:
+ * - belongs to User (creator)
+ * - belongs to UploadedFile (source file, optional)
+ * 
+ * Indexes:
+ * - s3Key: Optimizes S3 operations and clip lookups
+ */
+model Clip {
+    id String @id @default(cuid())
+    s3Key String
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Optional relationship to the source uploaded file
+    uploadedFile UploadedFile? @relation(fields: [uploadedFileId], references: [id], onDelete: Cascade)
+    uploadedFileId String?
+
+    // Relationship to user who owns the clip
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    // Index for efficient S3 key lookups
+    @@index([s3Key])
+}
+
+/**
+ * VerificationToken Model (NextAuth.js Required)
+ * 
+ * Used by NextAuth.js for email verification and password reset flows.
+ * Tokens are temporary and expire automatically for security.
+ * 
+ * Key Features:
+ * - Unique tokens for verification
+ * - Automatic expiration handling
+ * - Composite unique constraint for identifier + token
+ */
 model VerificationToken {
     identifier String
     token      String   @unique
     expires    DateTime
 
+    // Ensures unique verification tokens per identifier
     @@unique([identifier, token])
 }
