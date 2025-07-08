@@ -2,6 +2,14 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 /**
+ * Prisma schema for Clipstream AI Frontend
+ * ---------------------------------------
+ * This schema defines the database structure for the application, including user authentication,
+ * file uploads, video clips, and credit management. It is designed for extensibility and clarity,
+ * with detailed documentation for each model and relationship.
+ */
+
+/**
  * Prisma Client Generator Configuration
  * 
  * This section configures how Prisma generates the client library.
