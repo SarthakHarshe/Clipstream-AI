@@ -144,7 +144,7 @@ model Session {
 model User {
     id            String    @id @default(cuid())
     name          String?
-    email         String?   @unique
+    email         String   @unique
     emailVerified DateTime?
     password      String
     credits       Int @default(10)
