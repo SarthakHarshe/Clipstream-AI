@@ -1,7 +1,7 @@
-// signup-form.tsx
+// login-form.tsx
 // ---------------
-// Signup form component for Clipstream AI. Handles user input, validation, and submission for account creation.
-// Integrates with server actions for backend processing and automatically signs in users after successful registration.
+// Login form component for Clipstream AI. Handles user input, validation, and submission for user authentication.
+// Integrates with NextAuth for credential-based login and provides user feedback on errors.
 
 "use client";
 
@@ -21,13 +21,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import Link from "next/link";
-import { signupSchema, type SignupFormValues } from "~/schemas/auth";
-import { signUp } from "~/actions/auth";
+import { loginSchema, type LoginFormValues } from "~/schemas/auth";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-// Main signup form component
-export function SignupForm({
+// Main login form component
+export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
@@ -40,42 +39,33 @@ export function SignupForm({
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<SignupFormValues>({
-    resolver: zodResolver(signupSchema),
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
   });
 
-  // Form submission handler with server action integration
-  // After successful registration, automatically signs in the user
-  const onSubmit = async (data: SignupFormValues) => {
+  // Form submission handler for login
+  // Uses NextAuth credentials provider to authenticate the user
+  const onSubmit = async (data: LoginFormValues) => {
     try {
       setIsSubmitting(true);
       setError(null);
 
-      // Call server action to create user account
-      const result = await signUp(data);
-      if (!result.success) {
-        setError(result.error ?? "An error occurred while signing up.");
-        return;
-      }
-
-      // Automatically sign in the user after successful registration
-      const signUpResult = await signIn("credentials", {
+      // Attempt to sign in the user with provided credentials
+      const signInResult = await signIn("credentials", {
         email: data.email,
         password: data.password,
         redirect: false,
       });
 
-      if (signUpResult?.error) {
-        setError(
-          "Account created but couldn't sign in automatically. Please try again.",
-        );
+      if (signInResult?.error) {
+        setError("Invalid email or password. Please try again.");
         return;
       } else {
-        // Redirect to dashboard on successful signup and sign-in
+        // Redirect to dashboard on successful login
         router.push("/dashboard");
       }
     } catch (error) {
-      setError("An error occurred while signing up. Please try again.");
+      setError("An error occurred while logging in. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -86,9 +76,9 @@ export function SignupForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle>Sign up</CardTitle>
+          <CardTitle>Login</CardTitle>
           <CardDescription>
-            Enter your email below to sign up to your account
+            Enter your email below to log in to your account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -138,15 +128,15 @@ export function SignupForm({
                   className="w-full"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Signing up..." : "Sign up"}
+                  {isSubmitting ? "Logging in..." : "Login"}
                 </Button>
               </div>
             </div>
             {/* Link to login page */}
             <div className="mt-4 text-center text-sm">
-              Already have an account?{" "}
-              <Link href="/login" className="underline underline-offset-4">
-                Sign in
+              Don&apos;t have an account?{" "}
+              <Link href="/signup" className="underline underline-offset-4">
+                Sign up
               </Link>
             </div>
           </form>
