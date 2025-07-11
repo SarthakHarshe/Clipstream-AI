@@ -1,6 +1,7 @@
 // signup-form.tsx
 // ---------------
 // Signup form component for Clipstream AI. Handles user input, validation, and submission for account creation.
+// Integrates with server actions for backend processing and automatically signs in users after successful registration.
 
 "use client";
 
@@ -20,14 +21,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import Link from "next/link";
-
-// Zod schema for validating signup form input
-const signupSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-});
-
-type SignupFormValues = z.infer<typeof signupSchema>;
+import { signupSchema, type SignupFormValues } from "~/schemas/auth";
+import { signUp } from "~/actions/auth";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 // Main signup form component
 export function SignupForm({
@@ -37,6 +34,7 @@ export function SignupForm({
   // State for error messages and submission status
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
   // React Hook Form setup with Zod validation
   const {
     register,
@@ -46,10 +44,40 @@ export function SignupForm({
     resolver: zodResolver(signupSchema),
   });
 
-  // Form submission handler
+  // Form submission handler with server action integration
   const onSubmit = async (data: SignupFormValues) => {
-    // TODO: Implement actual signup logic (API call)
-    console.log(data);
+    try {
+      setIsSubmitting(true);
+      setError(null);
+
+      // Call server action to create user account
+      const result = await signUp(data);
+      if (!result.success) {
+        setError(result.error ?? "An error occurred while signing up.");
+        return;
+      }
+
+      // Automatically sign in the user after successful registration
+      const signInResult = await signIn("credentials", {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        setError(
+          "Account created but couldn't sign in automatically. Please try again.",
+        );
+        return;
+      } else {
+        // Redirect to dashboard on successful signup and sign-in
+        router.push("/dashboard");
+      }
+    } catch (error) {
+      setError("An error occurred while signing up. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Render the signup form UI
