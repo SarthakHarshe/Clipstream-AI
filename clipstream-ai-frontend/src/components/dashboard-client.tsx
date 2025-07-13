@@ -32,6 +32,7 @@ import {
 } from "./ui/table";
 import { Badge } from "./ui/badge";
 import { useRouter } from "next/navigation";
+import { ClipDisplay } from "./clip-display";
 
 // Main dashboard client component
 export function DashboardClient({
@@ -286,8 +287,22 @@ export function DashboardClient({
             </CardContent>
           </Card>
         </TabsContent>
-        {/* My Clips tab content (to be implemented) */}
-        <TabsContent value="my-clips"></TabsContent>
+        {/* My Clips tab content with clip display and management */}
+        <TabsContent value="my-clips">
+          <Card>
+            <CardHeader>
+              <CardTitle>My Clips</CardTitle>
+              <CardDescription>
+                View and manage your clips here. Processing may take a few
+                minutes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Render the clip display component with user's clips */}
+              <ClipDisplay clips={clips} />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
