@@ -24,96 +24,111 @@ export const processVideo = inngest.createFunction(
   { event: "process-video-events" },
   async ({ event, step }) => {
     // Extract uploaded file ID from event
-    const { uploadedFileId } = event.data;
+    const { uploadedFileId } = event.data as {
+      uploadedFileId: string;
+      userId: string;
+    };
 
-    // Step 1: Check user credits and get S3 key
-    const { userId, credits, s3Key } = await step.run(
-      "check-credits",
-      async () => {
-        // Fetch uploaded file and user credit info from DB
-        const uploadedFile = await db.uploadedFile.findUniqueOrThrow({
-          where: { id: uploadedFileId },
-          select: {
-            user: { select: { id: true, credits: true } },
-            s3Key: true,
-          },
-        });
-        return {
-          userId: uploadedFile.user.id,
-          credits: uploadedFile.user.credits,
-          s3Key: uploadedFile.s3Key,
-        };
-      },
-    );
-
-    // Step 2: If user has credits, process the video
-    if (credits > 0) {
-      // Update file status to 'processing'
-      await step.run("set-status-processing", async () => {
-        await db.uploadedFile.update({
-          where: { id: uploadedFileId },
-          data: { status: "processing" },
-        });
-      });
-
-      // Call the backend endpoint to process the video
-      await step.run("call-modal-endpoint", async () => {
-        await fetch(env.PROCESS_VIDEO_ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify({ s3_key: s3Key }),
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`,
-          },
-        });
-      });
-
-      // Discover generated clips in S3 and create DB records
-      const { clipsFound } = await step.run("create-clips-in-db", async () => {
-        const folderPrefix = s3Key.split("/")[0]!;
-        const allKeys = await listS3ObjectsByPrefix(folderPrefix);
-        // Filter out the original video file
-        const clipKeys = allKeys.filter(
-          (key): key is string =>
-            key != undefined && !key.endsWith("original.mp4"),
-        );
-        // Create DB records for each discovered clip
-        if (clipKeys.length > 0) {
-          await db.clip.createMany({
-            data: clipKeys.map((clipKey) => ({
-              s3Key: clipKey,
-              uploadedFileId,
-              userId,
-            })),
+    // Wrap the entire processing workflow in try-catch for error handling
+    try {
+      // Step 1: Check user credits and get S3 key
+      const { userId, credits, s3Key } = await step.run(
+        "check-credits",
+        async () => {
+          // Fetch uploaded file and user credit info from DB
+          const uploadedFile = await db.uploadedFile.findUniqueOrThrow({
+            where: { id: uploadedFileId },
+            select: {
+              user: { select: { id: true, credits: true } },
+              s3Key: true,
+            },
           });
-        }
-        return { clipsFound: clipKeys.length };
-      });
+          return {
+            userId: uploadedFile.user.id,
+            credits: uploadedFile.user.credits,
+            s3Key: uploadedFile.s3Key,
+          };
+        },
+      );
 
-      // Deduct credits based on number of clips found
-      await step.run("deduct-credits", async () => {
-        await db.user.update({
-          where: { id: userId },
-          data: {
-            credits: { decrement: Math.min(credits, clipsFound) },
+      // Step 2: If user has credits, process the video
+      if (credits > 0) {
+        // Update file status to 'processing'
+        await step.run("set-status-processing", async () => {
+          await db.uploadedFile.update({
+            where: { id: uploadedFileId },
+            data: { status: "processing" },
+          });
+        });
+
+        // Call the backend endpoint to process the video
+        await step.run("call-modal-endpoint", async () => {
+          await fetch(env.PROCESS_VIDEO_ENDPOINT, {
+            method: "POST",
+            body: JSON.stringify({ s3_key: s3Key }),
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`,
+            },
+          });
+        });
+
+        // Discover generated clips in S3 and create DB records
+        const { clipsFound } = await step.run(
+          "create-clips-in-db",
+          async () => {
+            const folderPrefix = s3Key.split("/")[0]!;
+            const allKeys = await listS3ObjectsByPrefix(folderPrefix);
+            // Filter out the original video file
+            const clipKeys = allKeys.filter(
+              (key): key is string =>
+                key != undefined && !key.endsWith("original.mp4"),
+            );
+            // Create DB records for each discovered clip
+            if (clipKeys.length > 0) {
+              await db.clip.createMany({
+                data: clipKeys.map((clipKey) => ({
+                  s3Key: clipKey,
+                  uploadedFileId,
+                  userId,
+                })),
+              });
+            }
+            return { clipsFound: clipKeys.length };
           },
-        });
-      });
+        );
 
-      // Update file status to 'processed'
-      await step.run("set-status-processed", async () => {
-        await db.uploadedFile.update({
-          where: { id: uploadedFileId },
-          data: { status: "processed" },
+        // Deduct credits based on number of clips found
+        await step.run("deduct-credits", async () => {
+          await db.user.update({
+            where: { id: userId },
+            data: {
+              credits: { decrement: Math.min(credits, clipsFound) },
+            },
+          });
         });
-      });
-    } else {
-      // If no credits, set file status to 'no credits'
-      await step.run("set-status-no-credits", async () => {
-        await db.uploadedFile.update({
-          where: { id: uploadedFileId },
-          data: { status: "no credits" },
+
+        // Update file status to 'processed'
+        await step.run("set-status-processed", async () => {
+          await db.uploadedFile.update({
+            where: { id: uploadedFileId },
+            data: { status: "processed" },
+          });
         });
+      } else {
+        // If no credits, set file status to 'no credits'
+        await step.run("set-status-no-credits", async () => {
+          await db.uploadedFile.update({
+            where: { id: uploadedFileId },
+            data: { status: "no credits" },
+          });
+        });
+      }
+    } catch (error) {
+      // Handle any errors during processing and mark file as failed
+      await db.uploadedFile.update({
+        where: { id: uploadedFileId },
+        data: { status: "failed" },
       });
     }
   },
@@ -138,5 +153,5 @@ async function listS3ObjectsByPrefix(prefix: string) {
     Prefix: prefix,
   });
   const response = await s3Client.send(listCommand);
-  return response.Contents?.map((item) => item.Key).filter(Boolean) || [];
+  return response.Contents?.map((item) => item.Key).filter(Boolean) ?? [];
 }
