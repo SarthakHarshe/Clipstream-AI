@@ -244,7 +244,9 @@ export function DashboardClient({
                               {item.fileName}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {new Date(item.createdAt).toLocaleDateString()}
+                              {new Date(item.createdAt)
+                                .toISOString()
+                                .slice(0, 10)}
                             </TableCell>
                             <TableCell className="max-w-xs truncate font-medium">
                               {/* Status badges with appropriate styling */}
