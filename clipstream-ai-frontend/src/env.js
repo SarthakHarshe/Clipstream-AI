@@ -1,3 +1,8 @@
+// env.js
+// ------
+// Environment variable management for Clipstream AI frontend.
+// Loads and validates all required environment variables, including AWS, Stripe, and app configuration.
+
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
@@ -35,29 +40,21 @@ export const env = createEnv({
    * - Video processing endpoints: Required for external API calls
    */
   server: {
-    // Authentication secret for NextAuth.js - required in production for security
-    AUTH_SECRET:
-      process.env.NODE_ENV === "production"
-        ? z.string()
-        : z.string().optional(),
-
-    // Database connection URL - must be a valid URL for Prisma
-    DATABASE_URL: z.string().url(),
-
-    // Node environment - defaults to development if not specified
-    NODE_ENV: z
-      .enum(["development", "test", "production"])
-      .default("development"),
-
-    // AWS S3 Configuration for file uploads and storage
+    // AWS and external service configuration
+    AWS_REGION: z.string(),
     AWS_ACCESS_KEY_ID: z.string(),
     AWS_SECRET_ACCESS_KEY: z.string(),
-    AWS_REGION: z.string(),
     S3_BUCKET_NAME: z.string(),
-
-    // External video processing service endpoints
     PROCESS_VIDEO_ENDPOINT: z.string(),
     PROCESS_VIDEO_ENDPOINT_AUTH: z.string(),
+
+    // Stripe configuration for billing and checkout
+    STRIPE_SECRET_KEY: z.string(),
+    STRIPE_SMALL_CREDIT_PACK: z.string(),
+    STRIPE_MEDIUM_CREDIT_PACK: z.string(),
+    STRIPE_LARGE_CREDIT_PACK: z.string(),
+    BASE_URL: z.string(),
+    STRIPE_WEBHOOK_SECRET: z.string(),
   },
 
   /**
@@ -71,6 +68,8 @@ export const env = createEnv({
    */
   client: {
     // Example: NEXT_PUBLIC_API_URL: z.string().url(),
+    // Stripe publishable key for client-side checkout
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string(),
   },
 
   /**
@@ -92,6 +91,14 @@ export const env = createEnv({
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
     PROCESS_VIDEO_ENDPOINT: process.env.PROCESS_VIDEO_ENDPOINT,
     PROCESS_VIDEO_ENDPOINT_AUTH: process.env.PROCESS_VIDEO_ENDPOINT_AUTH,
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_SMALL_CREDIT_PACK: process.env.STRIPE_SMALL_CREDIT_PACK,
+    STRIPE_MEDIUM_CREDIT_PACK: process.env.STRIPE_MEDIUM_CREDIT_PACK,
+    STRIPE_LARGE_CREDIT_PACK: process.env.STRIPE_LARGE_CREDIT_PACK,
+    BASE_URL: process.env.BASE_URL,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
   },
 
   /**
