@@ -33,6 +33,36 @@ import {
 import { Badge } from "./ui/badge";
 import { useRouter } from "next/navigation";
 import { ClipDisplay } from "./clip-display";
+import { useForm } from "react-hook-form";
+import z from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { ChangeEvent } from "react";
+
+// Add YouTube URL validation schema
+const youtubeUrlSchema = z.object({
+  url: z
+    .string()
+    .url()
+    .refine(
+      (val) => /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/.test(val),
+      {
+        message: "Invalid YouTube URL",
+      },
+    ),
+});
+
+// Add the client-only submitYoutubeUrl function here:
+async function submitYoutubeUrl(formData: FormData) {
+  const response = await fetch("/api/youtube-upload", {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || "Failed to submit YouTube URL");
+  }
+  return await response.json();
+}
 
 // Main dashboard client component
 export function DashboardClient({
@@ -54,6 +84,28 @@ export function DashboardClient({
   const [uploading, setUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+
+  // State for YouTube URL upload
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
+  const [cookiesFile, setCookiesFile] = useState<File | null>(null);
+  const {
+    register: registerYt,
+    handleSubmit: handleSubmitYt,
+    formState: { errors: ytErrors },
+    reset: resetYt,
+  } = useForm<{ url: string }>({
+    resolver: zodResolver(youtubeUrlSchema),
+  });
+
+  // Handler for cookies file input
+  const handleCookiesFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    let file: File | null = null;
+    if (e.target.files && e.target.files.length > 0) {
+      file = e.target.files[0] ?? null;
+    }
+    setCookiesFile(file);
+  };
 
   // Handle manual refresh of dashboard data
   const handleRefresh = async () => {
@@ -118,6 +170,42 @@ export function DashboardClient({
     }
   };
 
+  // Handler for YouTube URL submission
+  const handleYtSubmit = async (data: { url: string }) => {
+    setYtLoading(true);
+    setYtError(null);
+    try {
+      if (!cookiesFile) {
+        setYtError("You must upload your YouTube cookies.txt file.");
+        setYtLoading(false);
+        return;
+      }
+      // Prepare FormData for backend
+      const formData = new FormData();
+      formData.append("url", data.url);
+      formData.append("cookies", cookiesFile);
+      await submitYoutubeUrl(formData);
+      toast.success("YouTube video submitted successfully", {
+        description:
+          "Your YouTube video is being downloaded and processed. Check the status below.",
+        duration: 5000,
+      });
+      resetYt();
+      setCookiesFile(null);
+      router.refresh();
+    } catch (error: unknown) {
+      let message = "Failed to process YouTube video";
+      if (error instanceof Error) message = error.message;
+      setYtError(message);
+      toast.error("Failed to process YouTube video", {
+        description: message,
+        duration: 5000,
+      });
+    } finally {
+      setYtLoading(false);
+    }
+  };
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col space-y-6 px-4 py-8">
       {/* Dashboard header with title and buy credits button */}
@@ -139,6 +227,7 @@ export function DashboardClient({
       <Tabs defaultValue="upload">
         <TabsList>
           <TabsTrigger value="upload">Upload</TabsTrigger>
+          <TabsTrigger value="youtube">YouTube</TabsTrigger>
           <TabsTrigger value="my-clips">My Clips</TabsTrigger>
         </TabsList>
 
@@ -286,6 +375,108 @@ export function DashboardClient({
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        {/* YouTube tab content */}
+        <TabsContent value="youtube">
+          <Card>
+            <CardHeader>
+              <CardTitle>Download from YouTube</CardTitle>
+              <CardDescription>
+                Enter a YouTube video URL to download and process it
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Security/Privacy Note */}
+              <div className="mb-4 rounded border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800">
+                <strong>Note:</strong> To download from YouTube, you must upload
+                your <code>cookies.txt</code> file exported from your browser.{" "}
+                <br />
+                <ul className="mt-1 ml-5 list-disc">
+                  <li>
+                    Your cookies are used <strong>only</strong> for this
+                    download and are deleted immediately after.
+                  </li>
+                  <li>
+                    Our server will have temporary access to your YouTube
+                    account for the duration of the download.
+                  </li>
+                  <li>
+                    We <strong>never</strong> store your cookies long-term or
+                    use them for anything else.
+                  </li>
+                  <li>
+                    See instructions for exporting cookies{" "}
+                    <a
+                      href="https://github.com/yt-dlp/yt-dlp#how-do-i-pass-cookies-to-yt-dlp"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
+                      here
+                    </a>
+                    .
+                  </li>
+                </ul>
+              </div>
+              <form
+                onSubmit={handleSubmitYt(handleYtSubmit)}
+                className="flex flex-col gap-4"
+              >
+                <div>
+                  <label
+                    htmlFor="youtube-url"
+                    className="mb-1 block font-medium"
+                  >
+                    YouTube Video URL
+                  </label>
+                  <input
+                    id="youtube-url"
+                    type="url"
+                    className="w-full rounded border px-3 py-2 text-black"
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    {...registerYt("url")}
+                    disabled={ytLoading}
+                  />
+                  {ytErrors.url && (
+                    <p className="mt-1 text-sm text-red-500">
+                      {ytErrors.url.message}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label
+                    htmlFor="cookies-file"
+                    className="mb-1 block font-medium"
+                  >
+                    YouTube cookies.txt file
+                  </label>
+                  <input
+                    id="cookies-file"
+                    type="file"
+                    accept=".txt"
+                    onChange={handleCookiesFileChange}
+                    disabled={ytLoading}
+                  />
+                  {cookiesFile && (
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      Selected: {cookiesFile.name}
+                    </p>
+                  )}
+                </div>
+                {ytError && <p className="text-sm text-red-500">{ytError}</p>}
+                <Button type="submit" disabled={ytLoading}>
+                  {ytLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Download and Generate Clips"
+                  )}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>

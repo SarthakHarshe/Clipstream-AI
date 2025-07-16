@@ -181,6 +181,11 @@ model User {
  * Indexes:
  * - s3Key: Optimizes S3 operations and file lookups
  */
+enum UploadSource {
+  uploaded
+  youtube
+}
+
 model UploadedFile {
     id String @id @default(cuid())
     s3Key String
@@ -189,6 +194,11 @@ model UploadedFile {
     status String @default("queued") //processed, processing, no credits
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
+
+    // New fields for YouTube support
+    source UploadSource @default(uploaded)
+    youtubeUrl String?
+    cookiesPath String? // Temporary path to cookies.txt for YouTube downloads
 
     // Relationship to generated clips
     clips Clip[]

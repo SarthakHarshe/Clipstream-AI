@@ -27,12 +27,17 @@ from tqdm import tqdm
 import cv2
 import ffmpegcv
 import pysubs2
+import yt_dlp
+import sqlite3
+import tempfile
 
 
 # This class defines what data we expect when someone wants to process a video
 # like a form that users need to fill out
 class ProcessVideoRequest(BaseModel):
     s3_key: str  # The file path/name of the video in S3 (like "videos/my_video.mp4")
+    youtube_url: str | None = None  # Optional: YouTube URL if this is a YouTube job
+    cookies_s3_key: str | None = None  # Optional: S3 key for cookies.txt if YouTube job
 
 # We're building a custom computer environment that has all the tools we need
 # like setting up a new computer with all the right software installed
@@ -306,7 +311,6 @@ def process_clip(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_k
     clip_name = f"clip_{clip_index}"
     s3_key_dir = os.path.dirname(s3_key)
     output_s3_key = f"{s3_key_dir}/{clip_name}.mp4"
-    print(f"Output s3 key {output_s3_key}")
 
     # Create directory structure for this clip
     clip_dir = base_dir / clip_name
@@ -354,11 +358,6 @@ def process_clip(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_k
     tracks_path = clip_dir / "pywork" / "tracks.pckl"
     scores_path = clip_dir / "pywork" / "scores.pckl"
     
-    # Debug: List all files in pywork directory
-    print(f"Files in pywork directory: {list((clip_dir / 'pywork').glob('*'))}")
-    print(f"Tracks path exists: {tracks_path.exists()}")
-    print(f"Scores path exists: {scores_path.exists()}")
-    
     if not tracks_path.exists() or not scores_path.exists():
         raise FileNotFoundError("Tracks or scores not found for clip")
 
@@ -378,10 +377,13 @@ def process_clip(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_k
 
     # Step 6: Add subtitles to the vertical video
     # This creates a final video with embedded subtitles for better accessibility and engagement
-    create_subtitles_with_ffmpeg(transcript_segments, start_time, end_time, vertical_mp4_path, subtitle_output_path, max_words=5)
+    create_subtitles_with_ffmpeg(transcript_segments, start_time, end_time, str(vertical_mp4_path), str(subtitle_output_path), max_words=5)
     
-    s3_client = boto3.client("s3")
-    s3_client.upload_file(subtitle_output_path, "clipstream-ai", output_s3_key)
+    try:
+        s3_client = boto3.client("s3")
+        s3_client.upload_file(subtitle_output_path, "clipstream-ai", output_s3_key)
+    except Exception as e:
+        print(f"[ERROR] S3 upload failed: {e}")
 
 
 # This is our main AI processing service that runs in the cloud
@@ -488,59 +490,102 @@ class clipstream_ai:
         
         # Get the video file path from the request
         s3_key = request.s3_key
+        youtube_url = request.youtube_url
+        cookies_s3_key = request.cookies_s3_key
 
         # Check if the user has permission to use our service
-        # We compare their token with our secret token
         if token.credentials != os.environ["AUTH_TOKEN"]:
-            # If the token is wrong, tell them they're not authorized
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                                 detail="Incorrect bearer token", headers={"WWW-Authenticate": "Bearer"})
         
         # Create a unique folder for this video processing job
-        # This prevents conflicts if multiple people use the service at once
-        run_id = str(uuid.uuid4())  # Generate a unique ID like "abc123-def456-ghi789"
-        base_dir = pathlib.Path("/tmp") / run_id  # Create folder like "/tmp/abc123-def456-ghi789"
-        base_dir.mkdir(parents=True, exist_ok=True)  # Actually create the folder
+        run_id = str(uuid.uuid4())
+        base_dir = pathlib.Path("/tmp") / run_id
+        base_dir.mkdir(parents=True, exist_ok=True)
 
-        # Download the video file from S3 to our cloud computer
-        video_path = base_dir / "input.mp4"  # Save it as "input.mp4" in our folder
-        s3_client = boto3.client("s3")  # Connect to AWS S3
-        s3_client.download_file("clipstream-ai", s3_key, str(video_path))  # Download the video
+        video_path = base_dir / "input.mp4"
+        cookies_path = None
+        
+        # Determine the S3 key for clips - use run_id for consistent structure
+        clips_s3_key = f"clips/{run_id}"
+        
+        if youtube_url and cookies_s3_key:
+            # Download cookies file from S3 to a temp file
+            s3_client = boto3.client("s3")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
+                s3_client.download_fileobj("clipstream-ai", cookies_s3_key, tmp)
+                cookies_path = tmp.name
+            try:
+                ydl_opts = {
+                    'outtmpl': str(video_path),
+                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4',
+                    'merge_output_format': 'mp4',
+                    'quiet': True,
+                    'noplaylist': True,
+                    'max_filesize': 600 * 1024 * 1024,
+                }
+                if cookies_path:
+                    ydl_opts['cookiefile'] = cookies_path
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(youtube_url, download=True)
+                    duration = info.get('duration', 0)
+                    if duration > 60 * 60:
+                        raise Exception("Video too long (max 1 hour)")
+            except Exception as e:
+                print(f"[ERROR] YouTube download failed: {e}")
+                shutil.rmtree(base_dir, ignore_errors=True)
+                raise HTTPException(status_code=400, detail=f"YouTube download failed: {e}")
+            finally:
+                if cookies_path:
+                    try:
+                        os.remove(cookies_path)
+                        print(f"[DEBUG] Deleted temp cookies file: {cookies_path}")
+                    except Exception:
+                        pass
+                # Note: Cookies file deletion from S3 may fail due to permissions
+                # This is expected and doesn't affect functionality
+                if cookies_s3_key:
+                    try:
+                        s3_client.delete_object(Bucket="clipstream-ai", Key=cookies_s3_key)
+                        print(f"[DEBUG] Deleted cookies file from S3: {cookies_s3_key}")
+                    except Exception as e:
+                        print(f"[INFO] Could not delete cookies file from S3 (expected if no delete permissions): {e}")
+        else:
+            s3_client = boto3.client("s3")
+            s3_client.download_file("clipstream-ai", s3_key, str(video_path))
 
-        # Step 1: Transcribe the video to get word-level timestamps
-        print("Starting video transcription...")
         transcript_segments_json = self.transcribe_video(base_dir, video_path)
         transcript_segments = json.loads(transcript_segments_json)
 
-        # Step 2: Use Gemini AI to identify interesting moments for clips
-        print("Identifying clip moments")
         identified_moments_raw = self.identify_moments(transcript_segments)
 
-        # Clean up the JSON response from Gemini (remove markdown formatting if present)
         cleaned_json_string = identified_moments_raw.strip()
         if cleaned_json_string.startswith("```json"):
             cleaned_json_string = cleaned_json_string[len("```json"):].strip()
         if cleaned_json_string.endswith("```"):
             cleaned_json_string = cleaned_json_string[:-len("```")].strip()
 
-        # Parse the identified moments into a list of clip timestamps
-        clip_moments = json.loads(cleaned_json_string)
-        if not isinstance(clip_moments, list):
-            print("Error: identified moments is not a list")
+        try:
+            clip_moments = json.loads(cleaned_json_string)
+        except Exception as e:
+            print(f"[ERROR] Failed to parse Gemini output: {e}")
             clip_moments = []
-        
-        print(clip_moments)
+        if not isinstance(clip_moments, list):
+            print("[ERROR] identified moments is not a list")
+            clip_moments = []
 
         # Step 3: Process each identified moment into a vertical video clip
         # Limit to first 3 clips to avoid overwhelming the system
-        for index, moment in enumerate(clip_moments[:1]):
+        for index, moment in enumerate(clip_moments[:3]):
             if "start" in moment and "end" in moment:
-                print("Processing Clip" + str(index) + "from " + str(moment["start"]) + "to " + str(moment["end"]))
-                process_clip(base_dir, video_path, s3_key, moment["start"], moment["end"], index, transcript_segments)
+                try:
+                    # Pass the full prefix for the clip
+                    process_clip(base_dir, video_path, clips_s3_key, moment["start"], moment["end"], index, transcript_segments)
+                except Exception as e:
+                    print(f"[ERROR] process_clip failed for clip {index}: {e}")
         
         # Clean up temporary files after processing
         if base_dir.exists():
-            print(f"Cleaning up temp dir after {base_dir}")
             shutil.rmtree(base_dir, ignore_errors=True)
 
 
@@ -554,7 +599,7 @@ def main():
     clipstreamai = clipstream_ai()
 
     # Get the web address where our API is running
-    url = clipstreamai.process_video.get_web_url()  
+    url = clipstreamai.process_video.web_url  
 
     # Prepare the test data - this is like filling out a form
     payload = {

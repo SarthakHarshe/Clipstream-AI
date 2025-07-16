@@ -31,25 +31,27 @@ export const processVideo = inngest.createFunction(
 
     // Wrap the entire processing workflow in try-catch for error handling
     try {
-      // Step 1: Check user credits and get S3 key
-      const { userId, credits, s3Key } = await step.run(
-        "check-credits",
-        async () => {
+      // Step 1: Check user credits and get S3 key and YouTube/cookies info
+      const { userId, credits, s3Key, youtubeUrl, cookiesPath } =
+        await step.run("check-credits", async () => {
           // Fetch uploaded file and user credit info from DB
           const uploadedFile = await db.uploadedFile.findUniqueOrThrow({
             where: { id: uploadedFileId },
             select: {
               user: { select: { id: true, credits: true } },
               s3Key: true,
+              youtubeUrl: true,
+              cookiesPath: true,
             },
           });
           return {
             userId: uploadedFile.user.id,
             credits: uploadedFile.user.credits,
             s3Key: uploadedFile.s3Key,
+            youtubeUrl: uploadedFile.youtubeUrl,
+            cookiesPath: uploadedFile.cookiesPath,
           };
-        },
-      );
+        });
 
       // Step 2: If user has credits, process the video
       if (credits > 0) {
@@ -65,7 +67,11 @@ export const processVideo = inngest.createFunction(
         await step.run("call-modal-endpoint", async () => {
           await fetch(env.PROCESS_VIDEO_ENDPOINT, {
             method: "POST",
-            body: JSON.stringify({ s3_key: s3Key }),
+            body: JSON.stringify({
+              s3_key: s3Key,
+              youtube_url: youtubeUrl ?? null,
+              cookies_s3_key: cookiesPath ?? null,
+            }),
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`,

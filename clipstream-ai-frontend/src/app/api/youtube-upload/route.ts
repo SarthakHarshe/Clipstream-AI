@@ -1,0 +1,79 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "~/server/db";
+import { auth } from "~/server/auth";
+import { UploadSource } from "@prisma/client";
+import { inngest } from "~/inngest/client";
+import { randomUUID } from "crypto";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { env } from "~/env";
+
+export const runtime = "nodejs";
+
+export async function POST(req: NextRequest) {
+  // Authenticate user
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Parse multipart form
+  const formData = await req.formData();
+  const url = formData.get("url");
+  const cookiesFile = formData.get("cookies");
+
+  if (
+    typeof url !== "string" ||
+    !cookiesFile ||
+    !(cookiesFile instanceof File)
+  ) {
+    return NextResponse.json(
+      { error: "Missing URL or cookies file" },
+      { status: 400 },
+    );
+  }
+
+  // Upload cookies file to S3
+  const s3 = new S3Client({
+    region: env.AWS_REGION,
+    credentials: {
+      accessKeyId: env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+    },
+  });
+  const cookiesKey = `cookies/${randomUUID()}-cookies.txt`;
+  const arrayBuffer = await cookiesFile.arrayBuffer();
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: env.S3_BUCKET_NAME,
+      Key: cookiesKey,
+      Body: Buffer.from(arrayBuffer),
+      ContentType: "text/plain",
+    }),
+  );
+
+  // Create UploadedFile DB record
+  const uploadedFile = await db.uploadedFile.create({
+    data: {
+      userId: session.user.id,
+      s3Key: url, // Placeholder, backend will download
+      displayName: `YouTube: ${url}`,
+      uploaded: true,
+      status: "queued",
+      source: UploadSource.youtube,
+      youtubeUrl: url,
+      cookiesPath: cookiesKey, // Now an S3 key, not a local path
+    },
+    select: { id: true, userId: true },
+  });
+
+  // Trigger Inngest job
+  await inngest.send({
+    name: "process-video-events",
+    data: {
+      uploadedFileId: uploadedFile.id,
+      userId: uploadedFile.userId,
+    },
+  });
+
+  return NextResponse.json({ success: true, uploadedFileId: uploadedFile.id });
+}
