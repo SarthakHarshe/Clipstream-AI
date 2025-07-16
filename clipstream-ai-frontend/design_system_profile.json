@@ -1,0 +1,302 @@
+{
+  "designSystemProfile": {
+    "name": "Modern Dark Dashboard Design System",
+    "version": "1.0.0",
+    "description": "A comprehensive design system for creating modern, dark-themed dashboard interfaces with emphasis on clean typography, subtle interactions, and professional aesthetics",
+    
+    "colorPalette": {
+      "primary": {
+        "background": "#1a1a2e",
+        "surface": "#16213e",
+        "surfaceVariant": "#0f172a",
+        "accent": "#6366f1",
+        "accentHover": "#4f46e5"
+      },
+      "neutral": {
+        "text": {
+          "primary": "#f8fafc",
+          "secondary": "#cbd5e1",
+          "muted": "#64748b",
+          "disabled": "#475569"
+        },
+        "border": {
+          "subtle": "#334155",
+          "default": "#475569",
+          "strong": "#64748b"
+        }
+      },
+      "semantic": {
+        "success": "#10b981",
+        "warning": "#f59e0b",
+        "error": "#ef4444",
+        "info": "#3b82f6"
+      }
+    },
+    
+    "typography": {
+      "hierarchy": {
+        "hero": {
+          "fontSize": "3.5rem",
+          "fontWeight": "400",
+          "lineHeight": "1.1",
+          "letterSpacing": "-0.02em"
+        },
+        "h1": {
+          "fontSize": "2.5rem",
+          "fontWeight": "600",
+          "lineHeight": "1.2",
+          "letterSpacing": "-0.025em"
+        },
+        "h2": {
+          "fontSize": "2rem",
+          "fontWeight": "600",
+          "lineHeight": "1.3",
+          "letterSpacing": "-0.02em"
+        },
+        "h3": {
+          "fontSize": "1.5rem",
+          "fontWeight": "600",
+          "lineHeight": "1.4"
+        },
+        "body": {
+          "fontSize": "1rem",
+          "fontWeight": "400",
+          "lineHeight": "1.6"
+        },
+        "small": {
+          "fontSize": "0.875rem",
+          "fontWeight": "400",
+          "lineHeight": "1.5"
+        }
+      },
+      "fontFamily": {
+        "primary": "system-ui, -apple-system, sans-serif",
+        "mono": "JetBrains Mono, Consolas, monospace"
+      }
+    },
+    
+    "spacing": {
+      "scale": "8px",
+      "values": {
+        "xs": "4px",
+        "sm": "8px",
+        "md": "16px",
+        "lg": "24px",
+        "xl": "32px",
+        "2xl": "48px",
+        "3xl": "64px",
+        "4xl": "96px"
+      }
+    },
+    
+    "borderRadius": {
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "pill": "9999px"
+    },
+    
+    "shadows": {
+      "subtle": "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+      "default": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+      "elevated": "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+      "dramatic": "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+    },
+    
+    "components": {
+      "hero": {
+        "layout": "centered",
+        "backgroundStyle": "gradient-mesh",
+        "textAlignment": "center",
+        "spacing": {
+          "title": "lg",
+          "subtitle": "md",
+          "cta": "xl"
+        },
+        "structure": {
+          "breadcrumb": "optional-top",
+          "title": "primary-heading",
+          "subtitle": "descriptive-text",
+          "cta": "primary-button"
+        }
+      },
+      
+      "navigation": {
+        "topbar": {
+          "height": "64px",
+          "background": "surface",
+          "border": "subtle-bottom",
+          "padding": "md",
+          "elements": {
+            "logo": "left",
+            "navItems": "center-left",
+            "search": "center-right",
+            "profile": "right"
+          }
+        },
+        "breadcrumb": {
+          "style": "pill",
+          "background": "surfaceVariant",
+          "textColor": "secondary",
+          "separator": "arrow",
+          "hover": "subtle-highlight"
+        }
+      },
+      
+      "dashboard": {
+        "layout": "sidebar-main",
+        "sidebar": {
+          "width": "280px",
+          "background": "surface",
+          "padding": "lg"
+        },
+        "main": {
+          "padding": "xl",
+          "background": "background"
+        },
+        "header": {
+          "titleSize": "h1",
+          "actions": "right-aligned",
+          "spacing": "2xl"
+        }
+      },
+      
+      "buttons": {
+        "primary": {
+          "background": "accent",
+          "color": "white",
+          "padding": "12px 24px",
+          "borderRadius": "md",
+          "fontWeight": "500",
+          "hover": "accentHover",
+          "transition": "all 0.2s ease"
+        },
+        "secondary": {
+          "background": "transparent",
+          "color": "secondary",
+          "border": "1px solid border-default",
+          "padding": "12px 24px",
+          "borderRadius": "md",
+          "hover": "surface"
+        },
+        "ghost": {
+          "background": "transparent",
+          "color": "secondary",
+          "padding": "12px 24px",
+          "borderRadius": "md",
+          "hover": "surfaceVariant"
+        }
+      },
+      
+      "cards": {
+        "default": {
+          "background": "surface",
+          "borderRadius": "lg",
+          "padding": "lg",
+          "border": "1px solid border-subtle",
+          "shadow": "subtle"
+        },
+        "elevated": {
+          "background": "surface",
+          "borderRadius": "lg",
+          "padding": "xl",
+          "shadow": "elevated"
+        }
+      },
+      
+      "forms": {
+        "input": {
+          "background": "surfaceVariant",
+          "border": "1px solid border-subtle",
+          "borderRadius": "md",
+          "padding": "12px 16px",
+          "fontSize": "body",
+          "focus": "accent-border"
+        },
+        "search": {
+          "background": "surfaceVariant",
+          "borderRadius": "pill",
+          "padding": "8px 16px",
+          "icon": "left-positioned",
+          "placeholder": "muted"
+        }
+      },
+      
+      "tabs": {
+        "style": "underlined",
+        "background": "transparent",
+        "activeColor": "primary",
+        "inactiveColor": "muted",
+        "spacing": "lg",
+        "indicator": "bottom-border"
+      }
+    },
+    
+    "layoutPatterns": {
+      "centeredHero": {
+        "container": "max-width-6xl",
+        "padding": "responsive-horizontal",
+        "verticalAlignment": "center",
+        "minHeight": "80vh"
+      },
+      
+      "dashboardShell": {
+        "structure": "header-sidebar-main",
+        "header": "fixed-top",
+        "sidebar": "fixed-left",
+        "main": "flex-1",
+        "responsive": "collapse-sidebar-mobile"
+      },
+      
+      "contentArea": {
+        "maxWidth": "1200px",
+        "margin": "0 auto",
+        "padding": "responsive"
+      }
+    },
+    
+    "animations": {
+      "transitions": {
+        "fast": "0.1s ease",
+        "default": "0.2s ease",
+        "slow": "0.3s ease"
+      },
+      "hover": {
+        "scale": "1.02",
+        "opacity": "0.8",
+        "brightness": "1.1"
+      },
+      "focus": {
+        "scale": "1.01",
+        "shadow": "0 0 0 3px rgba(99, 102, 241, 0.1)"
+      }
+    },
+    
+    "responsiveBreakpoints": {
+      "mobile": "640px",
+      "tablet": "768px",
+      "desktop": "1024px",
+      "wide": "1280px"
+    },
+    
+    "designPrinciples": {
+      "contrast": "High contrast between text and backgrounds for readability",
+      "spacing": "Consistent 8px grid system for harmonious spacing",
+      "hierarchy": "Clear visual hierarchy through typography and spacing",
+      "interaction": "Subtle hover states and smooth transitions",
+      "accessibility": "WCAG AA compliant color contrasts and focus states",
+      "modernism": "Clean, minimal aesthetic with purposeful use of color",
+      "professionalism": "Sophisticated color palette suitable for business applications"
+    },
+    
+    "implementationNotes": {
+      "background": "Use gradient mesh or subtle noise texture for visual interest",
+      "borders": "Prefer subtle borders over harsh lines",
+      "shadows": "Use sparingly for depth, not decoration",
+      "typography": "Maintain consistent line heights and letter spacing",
+      "interactions": "All interactive elements should have hover and focus states",
+      "responsiveness": "Mobile-first approach with progressive enhancement"
+    }
+  }
+}

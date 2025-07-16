@@ -58,7 +58,7 @@ export default function RootLayout({
     // The font variable is applied to enable CSS custom properties
     <html lang="en" className={`${geist.variable}`}>
       {/* Body element that contains all page content */}
-      <body>{children}</body>
+      <body suppressHydrationWarning={true}>{children}</body>
     </html>
   );
 }

@@ -39,10 +39,13 @@ export default async function DashboardLayout({
 
   // Render dashboard layout with navigation header and toast notifications
   return (
-    <div className="flex min-h-screen flex-col">
-      <NavHeader credits={user.credits} email={user.email} />
-      <main className="container mx-auto flex-1 py-6">{children}</main>
-      <Toaster />
-    </div>
+    <>
+      {/* Premium dashboard with floating navigation */}
+      <div className="min-h-screen bg-transparent">
+        <NavHeader credits={user.credits} email={user.email} />
+        <main className="container mx-auto px-4 py-8">{children}</main>
+        <Toaster />
+      </div>
+    </>
   );
 }
