@@ -423,32 +423,16 @@
   transform: translateY(-2px);
 }
 
-/* Primary Action Button */
-.primary-glass-button {
+/* Primary Action Button - Clean gradient without background interference */
+.primary-gradient-button {
   position: relative;
-  background: linear-gradient(
-    135deg,
-    rgba(99, 102, 241, 0.6) 0%,
-    rgba(139, 92, 246, 0.6) 100%
-  );
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(99, 102, 241, 0.3);
   border-radius: 12px;
-  box-shadow:
-    0 4px 16px rgba(99, 102, 241, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
   transition: all 0.3s ease;
 }
 
-.primary-glass-button:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(99, 102, 241, 0.8) 0%,
-    rgba(139, 92, 246, 0.8) 100%
-  );
-  box-shadow:
-    0 8px 32px rgba(99, 102, 241, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+.primary-gradient-button:hover {
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.4);
   transform: translateY(-2px);
 }
 

@@ -18,11 +18,16 @@ export default async function Page() {
     redirect("/dashboard");
   }
 
-  // Render the signup form centered on the page
+  // Render the signup form with premium glassmorphism design
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <SignupForm />
+    <div className="relative min-h-screen">
+      {/* Premium background pattern consistent with dashboard */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900"></div>
+
+      <div className="relative flex min-h-screen w-full items-center justify-center p-6 md:p-10">
+        <div className="w-full max-w-md">
+          <SignupForm />
+        </div>
       </div>
     </div>
   );
