@@ -10,6 +10,7 @@ import { Toaster } from "~/components/ui/sonner";
 import NavHeader from "~/components/nav-header";
 import Aurora from "~/components/Aurora";
 import { useEffect, useState } from "react";
+import CountUp from "~/components/CountUp";
 
 interface User {
   credits: number;
@@ -69,7 +70,16 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-white">Loading...</div>
+        <div className="flex items-center space-x-2 text-white">
+          <span>Loading</span>
+          <CountUp
+            from={0}
+            to={99}
+            duration={1.5}
+            className="font-bold text-blue-400"
+          />
+          <span>%</span>
+        </div>
       </div>
     );
   }

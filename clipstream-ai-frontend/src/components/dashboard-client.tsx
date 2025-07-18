@@ -40,12 +40,14 @@ import {
 } from "./ui/table";
 
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ClipDisplay } from "./clip-display";
 import { useForm } from "react-hook-form";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ChangeEvent } from "react";
 import { motion } from "framer-motion";
+import CountUp from "./CountUp";
 
 // Add YouTube URL validation schema
 const youtubeUrlSchema = z.object({
@@ -96,6 +98,7 @@ export function DashboardClient({
   const [generateTrailer, setGenerateTrailer] = useState(false);
 
   const router = useRouter();
+  const pathname = usePathname();
 
   // Prevent hydration mismatches
   useEffect(() => {
@@ -215,33 +218,78 @@ export function DashboardClient({
   const handleYtSubmit = async (data: { url: string }) => {
     setYtLoading(true);
     setYtError(null);
+
     try {
+      // Enforce cookies requirement
       if (!cookiesFile) {
-        setYtError("You must upload your YouTube cookies.txt file.");
+        setYtError(
+          "Cookies file is required for YouTube downloads. Please upload your cookies.txt file before proceeding.",
+        );
         setYtLoading(false);
         return;
       }
+
+      // Validate cookies file
+      if (!cookiesFile.name.endsWith(".txt")) {
+        setYtError(
+          "Invalid file type. Please upload a .txt file containing your YouTube cookies.",
+        );
+        setYtLoading(false);
+        return;
+      }
+
+      // Check file size (should be reasonable for cookies)
+      if (cookiesFile.size > 1024 * 1024) {
+        // 1MB limit
+        setYtError(
+          "Cookies file is too large. Please ensure you're uploading a valid cookies.txt file.",
+        );
+        setYtLoading(false);
+        return;
+      }
+
+      if (cookiesFile.size < 100) {
+        // Minimum reasonable size
+        setYtError(
+          "Cookies file appears to be empty or invalid. Please export fresh cookies and try again.",
+        );
+        setYtLoading(false);
+        return;
+      }
+
       // Prepare FormData for backend
       const formData = new FormData();
       formData.append("url", data.url);
       formData.append("cookies", cookiesFile);
       formData.append("generateTrailer", ytGenerateTrailer.toString());
+
       await submitYoutubeUrl(formData);
+
       toast.success("YouTube video submitted successfully", {
         description:
           "Your YouTube video is being downloaded and processed. Check the status below.",
         duration: 5000,
       });
+
       resetYt();
       setCookiesFile(null);
       router.refresh();
     } catch (error: unknown) {
       let message = "Failed to process YouTube video";
-      if (error instanceof Error) message = error.message;
+      if (error instanceof Error) {
+        message = error.message;
+
+        // Provide specific guidance for common cookie-related errors
+        if (message.includes("cookies") || message.includes("authentication")) {
+          message +=
+            " Please ensure you're using fresh cookies exported within the last 24 hours.";
+        }
+      }
+
       setYtError(message);
       toast.error("Failed to process YouTube video", {
         description: message,
-        duration: 5000,
+        duration: 7000,
       });
     } finally {
       setYtLoading(false);
@@ -252,7 +300,7 @@ export function DashboardClient({
     <div className="mx-auto flex max-w-5xl flex-col space-y-6 px-4 py-8">
       {/* Dashboard Navigation */}
       <motion.div
-        className="mt-24 mb-8 flex justify-center"
+        className="mt-16 mb-6 flex justify-center"
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -261,7 +309,11 @@ export function DashboardClient({
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Link
               href="/dashboard"
-              className="glass-tab px-6 py-2 text-sm font-medium text-white"
+              className={`glass-tab text-sm transition-all duration-200 ${
+                pathname === "/dashboard"
+                  ? "nav-active font-bold"
+                  : "font-medium hover:bg-white/10"
+              }`}
             >
               Dashboard
             </Link>
@@ -269,7 +321,11 @@ export function DashboardClient({
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Link
               href="/dashboard/billing"
-              className="glass-tab px-6 py-2 text-sm font-medium text-white"
+              className={`glass-tab text-sm font-medium transition-all duration-200 ${
+                pathname === "/dashboard/billing"
+                  ? "nav-active"
+                  : "hover:bg-white/10"
+              }`}
             >
               Billing
             </Link>
@@ -455,7 +511,16 @@ export function DashboardClient({
                                       }}
                                     >
                                       <Loader2 className="h-4 w-4 animate-spin" />
-                                      <span>Processing...</span>
+                                      <div className="flex items-center space-x-1">
+                                        <span>Processing</span>
+                                        <CountUp
+                                          from={0}
+                                          to={99}
+                                          duration={3}
+                                          className="font-bold text-blue-400"
+                                        />
+                                        <span>%</span>
+                                      </div>
                                     </motion.div>
                                   ) : (
                                     <span className="flex items-center space-x-2">
@@ -577,9 +642,8 @@ export function DashboardClient({
                                     </span>
                                   </div>
                                   <p className="mt-1 text-sm text-white/60">
-                                    Create a cinematic trailer with transitions,
-                                    titles, and effects combining the best
-                                    moments
+                                    Create a cinematic trailer combining the
+                                    best moments (60-second highlight reel)
                                   </p>
                                 </div>
                               </div>
@@ -659,116 +723,144 @@ export function DashboardClient({
                                 <span>🔄</span>
                               )}
                             </motion.div>
-                            <span className="ml-2">Refresh</span>
+                            <div className="ml-2 flex items-center space-x-1">
+                              {refreshing ? (
+                                <>
+                                  <span>Refreshing</span>
+                                  <CountUp
+                                    from={0}
+                                    to={100}
+                                    duration={1.5}
+                                    className="font-bold text-green-400"
+                                  />
+                                  <span>%</span>
+                                </>
+                              ) : (
+                                <span>Refresh</span>
+                              )}
+                            </div>
                           </Button>
                         </motion.div>
                       </div>
 
-                      <div className="glass-table">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="border-white/10">
-                              <TableHead className="font-medium text-white/80">
-                                File
-                              </TableHead>
-                              <TableHead className="font-medium text-white/80">
-                                Status
-                              </TableHead>
-                              <TableHead className="font-medium text-white/80">
-                                Clips
-                              </TableHead>
-                              <TableHead className="font-medium text-white/80">
-                                Date
-                              </TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {uploadedFiles.map((item, index) => (
-                              <motion.tr
-                                key={item.id}
-                                className="glass-table-row"
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{
-                                  duration: 0.3,
-                                  delay: index * 0.1,
-                                }}
-                              >
-                                <TableCell className="font-medium text-white">
-                                  <div className="flex items-center space-x-3">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20">
-                                      <span className="text-sm">📄</span>
-                                    </div>
-                                    <span className="max-w-xs truncate">
-                                      {item.fileName}
-                                    </span>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <motion.div
-                                    animate={
-                                      item.status === "processing"
-                                        ? { scale: [1, 1.05, 1] }
-                                        : {}
-                                    }
-                                    transition={{
-                                      duration: 2,
-                                      repeat:
-                                        item.status === "processing"
-                                          ? Infinity
-                                          : 0,
-                                    }}
-                                  >
-                                    {item.status === "queued" && (
-                                      <div className="status-badge status-pending">
-                                        <span className="mr-1">⏳</span>
-                                        Queued
-                                      </div>
-                                    )}
-                                    {item.status === "processing" && (
-                                      <div className="status-badge status-processing pulse-glow">
-                                        <span className="mr-1">⚡</span>
-                                        Processing
-                                      </div>
-                                    )}
-                                    {item.status === "processed" && (
-                                      <div className="status-badge status-success">
-                                        <span className="mr-1">✅</span>
-                                        Complete
-                                      </div>
-                                    )}
-                                    {(item.status === "failed" ||
-                                      item.status === "no credits") && (
-                                      <div className="status-badge status-error">
-                                        <span className="mr-1">❌</span>
-                                        {item.status === "no credits"
-                                          ? "No Credits"
-                                          : "Failed"}
-                                      </div>
-                                    )}
-                                  </motion.div>
-                                </TableCell>
-                                <TableCell className="text-white">
-                                  {item.clipsCount > 0 ? (
-                                    <motion.div
-                                      className="flex items-center space-x-1"
-                                      whileHover={{ scale: 1.05 }}
+                      {/* Processing Status */}
+                      <Card className="glass-card border-white/10 bg-white/5">
+                        <CardHeader>
+                          <CardTitle className="text-white">
+                            Processing Status
+                          </CardTitle>
+                          <CardDescription className="text-white/60">
+                            Track your video upload processing jobs
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {uploadedFiles.filter(
+                            (file) => !file.s3Key.startsWith("http"),
+                          ).length === 0 ? (
+                            <p className="text-center text-white/60">
+                              No videos uploaded yet. Upload a video above to
+                              get started.
+                            </p>
+                          ) : (
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="border-white/10">
+                                  <TableHead className="text-white/80">
+                                    File Name
+                                  </TableHead>
+                                  <TableHead className="text-white/80">
+                                    Status
+                                  </TableHead>
+                                  <TableHead className="text-white/80">
+                                    Clips
+                                  </TableHead>
+                                  <TableHead className="text-white/80">
+                                    Date
+                                  </TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {uploadedFiles
+                                  .filter(
+                                    (file) => !file.s3Key.startsWith("http"),
+                                  )
+                                  .map((file) => (
+                                    <TableRow
+                                      key={file.id}
+                                      className="border-white/10"
                                     >
-                                      <span>🎬</span>
-                                      <span>{item.clipsCount}</span>
-                                    </motion.div>
-                                  ) : (
-                                    <span className="text-white/60">—</span>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-sm text-white/60">
-                                  {formatDate(item.createdAt)}
-                                </TableCell>
-                              </motion.tr>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
+                                      <TableCell className="text-white/90">
+                                        {file.fileName}
+                                      </TableCell>
+                                      <TableCell>
+                                        <motion.div
+                                          animate={
+                                            file.status === "processing"
+                                              ? { scale: [1, 1.05, 1] }
+                                              : {}
+                                          }
+                                          transition={{
+                                            duration: 2,
+                                            repeat:
+                                              file.status === "processing"
+                                                ? Infinity
+                                                : 0,
+                                          }}
+                                        >
+                                          {file.status === "queued" && (
+                                            <div className="status-badge status-pending">
+                                              <span className="mr-1">⏳</span>
+                                              Queued
+                                            </div>
+                                          )}
+                                          {file.status === "processing" && (
+                                            <div className="status-badge status-processing pulse-glow">
+                                              <span className="mr-1">⚡</span>
+                                              Processing
+                                            </div>
+                                          )}
+                                          {file.status === "processed" && (
+                                            <div className="status-badge status-success">
+                                              <span className="mr-1">✅</span>
+                                              Complete
+                                            </div>
+                                          )}
+                                          {(file.status === "failed" ||
+                                            file.status === "no credits") && (
+                                            <div className="status-badge status-error">
+                                              <span className="mr-1">❌</span>
+                                              {file.status === "no credits"
+                                                ? "No Credits"
+                                                : "Failed"}
+                                            </div>
+                                          )}
+                                        </motion.div>
+                                      </TableCell>
+                                      <TableCell className="text-white">
+                                        {file.clipsCount > 0 ? (
+                                          <motion.div
+                                            className="flex items-center space-x-1"
+                                            whileHover={{ scale: 1.05 }}
+                                          >
+                                            <span>🎬</span>
+                                            <span>{file.clipsCount}</span>
+                                          </motion.div>
+                                        ) : (
+                                          <span className="text-white/60">
+                                            —
+                                          </span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-white/70">
+                                        {formatDate(file.createdAt)}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                              </TableBody>
+                            </Table>
+                          )}
+                        </CardContent>
+                      </Card>
                     </motion.div>
                   )}
                 </CardContent>
@@ -811,74 +903,77 @@ export function DashboardClient({
                   {/* Security Notice */}
                   <div className="gradient-border-card">
                     <div className="card-content space-y-4 p-6">
-                      <div className="flex items-start space-x-4">
-                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500">
-                          <span className="text-lg text-white">🔒</span>
+                      {/* Header with icon */}
+                      <div className="flex items-center space-x-3">
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-yellow-500 to-orange-500">
+                          <span className="text-sm text-white">🔒</span>
                         </div>
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-white">
-                            Privacy & Security
+                        <h4 className="font-semibold text-white">
+                          Privacy & Security
+                        </h4>
+                      </div>
+
+                      {/* Content section - full width */}
+                      <div className="space-y-4 rounded-lg bg-white/5 p-6">
+                        <div className="flex items-center space-x-2">
+                          <div className="rounded-full bg-amber-500/20 p-2">
+                            <span className="text-amber-400">⚠️</span>
+                          </div>
+                          <h4 className="font-medium text-amber-400">
+                            Cookies Required
                           </h4>
-                          <div className="space-y-3 text-sm leading-relaxed text-white/80">
-                            <p>
-                              To import videos from YouTube, we need your
-                              browser cookies to authenticate with YouTube on
-                              your behalf. This allows us to:
-                            </p>
-                            <ul className="ml-4 list-disc space-y-1 text-white/70">
-                              <li>
-                                Access videos you have permission to download
-                              </li>
-                              <li>Bypass age restrictions and region blocks</li>
-                              <li>
-                                Download private or unlisted videos you can
-                                access
-                              </li>
-                            </ul>
-                            <p>
-                              Upload your{" "}
-                              <code className="rounded bg-white/10 px-2 py-1 text-yellow-300">
-                                cookies.txt
-                              </code>{" "}
-                              file to enable this functionality. Your cookies
-                              are used exclusively for the download process and
-                              are permanently deleted from our servers
-                              immediately after use.
-                            </p>
-                          </div>
-
-                          <div className="space-y-2">
-                            <h5 className="text-sm font-medium text-white">
-                              Recommended Cookie Exporter:
-                            </h5>
-                            <div className="space-y-2">
-                              <a
-                                href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center space-x-2 rounded-lg bg-blue-600/20 px-3 py-2 text-sm text-blue-400 hover:bg-blue-600/30 hover:text-blue-300"
-                              >
-                                <span>🌐</span>
-                                <span>
-                                  Get cookies.txt LOCALLY Chrome Extension
-                                </span>
-                              </a>
-                              <p className="text-xs text-white/50">
-                                * Third-party open-source extension. ClipStream
-                                AI has no official association with this tool.
-                              </p>
-                            </div>
-                          </div>
-
-                          <a
-                            href="https://github.com/yt-dlp/yt-dlp#how-do-i-pass-cookies-to-yt-dlp"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-block text-sm text-blue-400 underline hover:text-blue-300"
-                          >
-                            Learn more about cookie formats →
-                          </a>
                         </div>
+                        <div className="space-y-3 text-sm text-white/80">
+                          <p>
+                            A current{" "}
+                            <code className="rounded bg-white/10 px-2 py-1 text-yellow-300">
+                              cookies.txt
+                            </code>{" "}
+                            file is <strong>required</strong> for YouTube
+                            downloads. Your cookies are used exclusively for the
+                            download process and are permanently deleted from
+                            our servers immediately after use.
+                          </p>
+                          <div className="rounded border border-red-400/20 bg-red-500/10 p-3">
+                            <p className="text-xs font-medium text-red-400">
+                              🔴 IMPORTANT: Use fresh cookies exported within
+                              the last 24 hours for best results. Expired
+                              cookies will cause downloads to fail.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <h5 className="text-sm font-medium text-white">
+                            Recommended Cookie Exporter:
+                          </h5>
+                          <div className="space-y-2">
+                            <a
+                              href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-2 rounded-lg bg-blue-600/20 px-3 py-2 text-sm text-blue-400 hover:bg-blue-600/30 hover:text-blue-300"
+                            >
+                              <span>🌐</span>
+                              <span>
+                                Get cookies.txt LOCALLY Chrome Extension
+                              </span>
+                            </a>
+                            <p className="text-xs text-white/50">
+                              * Third-party open-source extension. ClipStream AI
+                              has no official association with this tool.
+                            </p>
+                          </div>
+                        </div>
+
+                        <a
+                          href="https://github.com/yt-dlp/yt-dlp#how-do-i-pass-cookies-to-yt-dlp"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block text-sm text-blue-400 underline hover:text-blue-300"
+                        >
+                          Learn more about cookie formats →
+                        </a>
                       </div>
                     </div>
                   </div>
@@ -909,22 +1004,42 @@ export function DashboardClient({
 
                       <div>
                         <label className="mb-3 block font-medium text-white">
-                          Cookies File
+                          Cookies File <span className="text-red-400">*</span>
+                          <span className="ml-2 text-xs text-amber-400">
+                            (Required - Must be fresh!)
+                          </span>
                         </label>
-                        <div className="glass-input overflow-hidden p-0">
+                        <div
+                          className={`glass-input overflow-hidden p-0 transition-colors ${
+                            !cookiesFile
+                              ? "border-red-400/40 bg-red-500/5"
+                              : "border-green-400/40 bg-green-500/5"
+                          }`}
+                        >
                           <input
                             type="file"
                             accept=".txt"
                             onChange={handleCookiesFileChange}
                             disabled={ytLoading}
+                            required
                             className="w-full bg-transparent p-3 text-white file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-white hover:file:bg-white/20"
                           />
                         </div>
-                        {cookiesFile && (
-                          <p className="mt-2 flex items-center space-x-2 text-sm text-white/60">
+                        {cookiesFile ? (
+                          <div className="mt-2 flex items-center space-x-2 text-sm text-green-400">
                             <span>✓</span>
                             <span>Selected: {cookiesFile.name}</span>
-                          </p>
+                            <span className="text-xs text-white/60">
+                              ({(cookiesFile.size / 1024).toFixed(1)} KB)
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="mt-2 flex items-center space-x-2 text-sm text-red-400">
+                            <span>⚠️</span>
+                            <span>
+                              No cookies file selected - upload required
+                            </span>
+                          </div>
                         )}
                       </div>
 
@@ -1010,8 +1125,8 @@ export function DashboardClient({
                                   </span>
                                 </div>
                                 <p className="mt-1 text-sm text-white/60">
-                                  Create a cinematic trailer with transitions,
-                                  titles, and effects combining the best moments
+                                  Create a cinematic trailer combining the best
+                                  moments (60-second highlight reel)
                                 </p>
                               </div>
                             </div>
@@ -1037,31 +1152,204 @@ export function DashboardClient({
                     >
                       <Button
                         type="submit"
-                        disabled={ytLoading}
                         className="primary-glass-button w-full border-0 py-3 font-medium text-white"
+                        disabled={ytLoading || !cookiesFile}
                       >
                         {ytLoading ? (
-                          <motion.div
-                            className="flex items-center justify-center space-x-2"
-                            animate={{ opacity: [1, 0.7, 1] }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
-                          >
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            <span>Importing from YouTube...</span>
-                          </motion.div>
+                          <div className="flex items-center space-x-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <div className="flex items-center space-x-1">
+                              <span>Processing YouTube video</span>
+                              <CountUp
+                                from={0}
+                                to={95}
+                                duration={4}
+                                className="font-bold text-red-400"
+                              />
+                              <span>%</span>
+                            </div>
+                          </div>
+                        ) : !cookiesFile ? (
+                          <div className="flex items-center space-x-2">
+                            <span>⚠️</span>
+                            <span>Upload cookies file to continue</span>
+                          </div>
                         ) : (
-                          <span className="flex items-center justify-center space-x-2">
-                            <Download className="h-4 w-4" />
-                            <span>
-                              {ytGenerateTrailer
-                                ? "Import & Generate Trailer"
-                                : "Import & Generate Clips"}
-                            </span>
-                          </span>
+                          <div className="flex items-center space-x-2">
+                            <Youtube className="h-4 w-4" />
+                            <span>Process YouTube Video</span>
+                          </div>
                         )}
                       </Button>
                     </motion.div>
                   </form>
+
+                  {/* Processing Queue Header */}
+                  <div className="flex items-center justify-between">
+                    <h3 className="flex items-center space-x-2 text-lg font-semibold text-white">
+                      <span>📊</span>
+                      <span>Processing Queue</span>
+                    </h3>
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <Button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="glass-button border-white/20 text-white"
+                        variant="outline"
+                        size="sm"
+                      >
+                        <motion.div
+                          animate={{ rotate: refreshing ? 360 : 0 }}
+                          transition={{
+                            duration: 1,
+                            repeat: refreshing ? Infinity : 0,
+                          }}
+                        >
+                          {refreshing ? (
+                            <Loader2 className="h-4 w-4" />
+                          ) : (
+                            <span>🔄</span>
+                          )}
+                        </motion.div>
+                        <div className="ml-2 flex items-center space-x-1">
+                          {refreshing ? (
+                            <>
+                              <span>Refreshing</span>
+                              <CountUp
+                                from={0}
+                                to={100}
+                                duration={1.5}
+                                className="font-bold text-green-400"
+                              />
+                              <span>%</span>
+                            </>
+                          ) : (
+                            <span>Refresh</span>
+                          )}
+                        </div>
+                      </Button>
+                    </motion.div>
+                  </div>
+
+                  {/* YouTube Processing Status */}
+                  <Card className="glass-card border-white/10 bg-white/5">
+                    <CardHeader>
+                      <CardTitle className="text-white">
+                        YouTube Processing Status
+                      </CardTitle>
+                      <CardDescription className="text-white/60">
+                        Track your YouTube import processing jobs
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {uploadedFiles.filter((file) =>
+                        file.s3Key.startsWith("http"),
+                      ).length === 0 ? (
+                        <p className="text-center text-white/60">
+                          No YouTube videos imported yet. Import a YouTube video
+                          above to get started.
+                        </p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-white/10">
+                              <TableHead className="text-white/80">
+                                Video URL
+                              </TableHead>
+                              <TableHead className="text-white/80">
+                                Status
+                              </TableHead>
+                              <TableHead className="text-white/80">
+                                Clips
+                              </TableHead>
+                              <TableHead className="text-white/80">
+                                Date
+                              </TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {uploadedFiles
+                              .filter((file) => file.s3Key.startsWith("http"))
+                              .map((file) => (
+                                <TableRow
+                                  key={file.id}
+                                  className="border-white/10"
+                                >
+                                  <TableCell className="text-white/90">
+                                    <div className="max-w-xs truncate">
+                                      {file.fileName.replace("YouTube: ", "")}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <motion.div
+                                      animate={
+                                        file.status === "processing"
+                                          ? { scale: [1, 1.05, 1] }
+                                          : {}
+                                      }
+                                      transition={{
+                                        duration: 2,
+                                        repeat:
+                                          file.status === "processing"
+                                            ? Infinity
+                                            : 0,
+                                      }}
+                                    >
+                                      {file.status === "queued" && (
+                                        <div className="status-badge status-pending">
+                                          <span className="mr-1">⏳</span>
+                                          Queued
+                                        </div>
+                                      )}
+                                      {file.status === "processing" && (
+                                        <div className="status-badge status-processing pulse-glow">
+                                          <span className="mr-1">⚡</span>
+                                          Processing
+                                        </div>
+                                      )}
+                                      {file.status === "processed" && (
+                                        <div className="status-badge status-success">
+                                          <span className="mr-1">✅</span>
+                                          Complete
+                                        </div>
+                                      )}
+                                      {(file.status === "failed" ||
+                                        file.status === "no credits") && (
+                                        <div className="status-badge status-error">
+                                          <span className="mr-1">❌</span>
+                                          {file.status === "no credits"
+                                            ? "No Credits"
+                                            : "Failed"}
+                                        </div>
+                                      )}
+                                    </motion.div>
+                                  </TableCell>
+                                  <TableCell className="text-white">
+                                    {file.clipsCount > 0 ? (
+                                      <motion.div
+                                        className="flex items-center space-x-1"
+                                        whileHover={{ scale: 1.05 }}
+                                      >
+                                        <span>🎬</span>
+                                        <span>{file.clipsCount}</span>
+                                      </motion.div>
+                                    ) : (
+                                      <span className="text-white/60">—</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-white/70">
+                                    {formatDate(file.createdAt)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
                 </CardContent>
               </Card>
             </div>

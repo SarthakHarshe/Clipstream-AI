@@ -307,6 +307,7 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, cl
 def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_key: str, clip_moments: list, transcript_segments: list):
     """
     Create an AI-generated 60-second trailer that combines multiple short moments with animated titles.
+    Uses a content-focused approach that respects natural moment durations.
     
     Args:
         base_dir: Base directory for processing
@@ -315,38 +316,70 @@ def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3
         clip_moments: List of identified moments with start/end times
         transcript_segments: Word-level transcript segments
     """
-    print(f"Creating 60-second trailer from {len(clip_moments)} moments...")
+    print(f"Creating content-focused trailer from {len(clip_moments)} moments...")
     
     # Create trailer directory structure
     trailer_dir = base_dir / "trailer"
     trailer_dir.mkdir(parents=True, exist_ok=True)
     
-    # Select and process moments to fit within 60 seconds total
-    # Target: 3-4 moments of 12-15 seconds each + title cards + transitions
+    # Content-focused selection: prioritize quality over rigid timing
     selected_moments = []
     total_content_duration = 0
-    target_segment_duration = 12  # 12 seconds per segment
-    max_content_duration = 45  # 45 seconds of content + 15 seconds for titles/transitions
+    target_total_duration = 60  # Total target including titles/transitions
+    max_content_duration = 50   # Allow 50 seconds for content, 10 for titles/transitions
     
-    for moment in clip_moments[:6]:  # Check up to 6 moments
+    # Sort moments by duration to prioritize well-sized segments
+    sorted_moments = sorted(clip_moments, key=lambda m: m["end"] - m["start"], reverse=True)
+    
+    for moment in sorted_moments:
         if total_content_duration >= max_content_duration:
             break
             
-        segment_duration = moment["end"] - moment["start"]
+        original_duration = moment["end"] - moment["start"]
         
-        # Adjust segment to target duration
-        if segment_duration > target_segment_duration:
-            # Take the most interesting part (first part usually has the question)
-            moment["end"] = moment["start"] + target_segment_duration
-            segment_duration = target_segment_duration
-        elif segment_duration < 8:  # Skip segments that are too short
+        # Content-focused rules:
+        # 1. Include short impactful moments (5+ seconds) as-is
+        # 2. Include medium moments (8-18 seconds) as-is  
+        # 3. Only trim very long moments (18+ seconds) to preserve content flow
+        # 4. Skip extremely short moments (under 4 seconds) that lack context
+        
+        if original_duration < 4:
+            print(f"Skipping too-short moment: {original_duration:.1f}s")
             continue
-            
-        selected_moments.append(moment)
-        total_content_duration += segment_duration
+        elif original_duration <= 18:
+            # Keep natural duration - don't artificially cut good content
+            adjusted_moment = moment.copy()
+            final_duration = original_duration
+            print(f"Including natural moment: {final_duration:.1f}s")
+        else:
+            # Only trim if really necessary (18+ seconds), but preserve the best part
+            # Take first 15 seconds to keep the setup/question
+            adjusted_moment = moment.copy()
+            adjusted_moment["end"] = adjusted_moment["start"] + 15
+            final_duration = 15
+            print(f"Trimming long moment from {original_duration:.1f}s to {final_duration:.1f}s")
         
-        # Aim for 3-4 segments
-        if len(selected_moments) >= 4:
+        # Check if adding this moment would exceed our budget
+        if total_content_duration + final_duration <= max_content_duration:
+            selected_moments.append(adjusted_moment)
+            total_content_duration += final_duration
+            print(f"Added moment: {final_duration:.1f}s (total: {total_content_duration:.1f}s)")
+        else:
+            # If we're close to the limit, try to fit a shorter remaining moment
+            remaining_budget = max_content_duration - total_content_duration
+            if remaining_budget >= 5 and final_duration > remaining_budget:
+                # Trim this moment to fit the remaining budget
+                adjusted_moment["end"] = adjusted_moment["start"] + remaining_budget
+                selected_moments.append(adjusted_moment)
+                total_content_duration += remaining_budget
+                print(f"Final moment trimmed to fit: {remaining_budget:.1f}s")
+                break
+            else:
+                print(f"Skipping moment - would exceed budget ({final_duration:.1f}s > {remaining_budget:.1f}s remaining)")
+                continue
+        
+        # Stop if we have enough content (aim for 3-5 moments)
+        if len(selected_moments) >= 5:
             break
     
     if not selected_moments:
@@ -748,9 +781,38 @@ class clipstream_ai:
         if youtube_url and cookies_s3_key:
             # Download cookies file from S3 to a temp file
             s3_client = boto3.client("s3")
+            
+            # Verify cookies file exists before attempting download
+            try:
+                s3_client.head_object(Bucket="clipstream-ai", Key=cookies_s3_key)
+                print(f"[DEBUG] Cookies file found in S3: {cookies_s3_key}")
+            except Exception as e:
+                print(f"[ERROR] Cookies file not found in S3: {cookies_s3_key} - {e}")
+                # Update status to failed with specific error
+                try:
+                    import requests
+                    requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
+                                json={"s3_key": s3_key, "status": "failed", "error": "Cookies file missing. Please upload a fresh cookies.txt file."}, timeout=10)
+                except:
+                    pass
+                raise HTTPException(status_code=400, detail="Cookies file missing. Please upload a fresh cookies.txt file.")
+            
             with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
-                s3_client.download_fileobj("clipstream-ai", cookies_s3_key, tmp)
-                cookies_path = tmp.name
+                try:
+                    s3_client.download_fileobj("clipstream-ai", cookies_s3_key, tmp)
+                    cookies_path = tmp.name
+                    print(f"[DEBUG] Successfully downloaded cookies to: {cookies_path}")
+                except Exception as e:
+                    print(f"[ERROR] Failed to download cookies file: {e}")
+                    # Update status to failed with specific error
+                    try:
+                        import requests
+                        requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
+                                    json={"s3_key": s3_key, "status": "failed", "error": "Failed to access cookies file. Please upload a fresh cookies.txt file."}, timeout=10)
+                    except:
+                        pass
+                    raise HTTPException(status_code=400, detail="Failed to access cookies file. Please upload a fresh cookies.txt file.")
+                    
             try:
                 ydl_opts = {
                     'outtmpl': str(video_path),
@@ -762,14 +824,26 @@ class clipstream_ai:
                 }
                 if cookies_path:
                     ydl_opts['cookiefile'] = cookies_path
+                    print(f"[DEBUG] Using cookies file for YouTube download")
+                else:
+                    print("[WARNING] No cookies file provided for YouTube download")
+                    
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(youtube_url, download=True)
                     duration = info.get('duration', 0)
                     if duration > 60 * 60:
                         raise Exception("Video too long (max 1 hour)")
+                    print(f"[DEBUG] Successfully downloaded YouTube video: {youtube_url}")
             except Exception as e:
                 print(f"[ERROR] YouTube download failed: {e}")
                 shutil.rmtree(base_dir, ignore_errors=True)
+                # Update status to failed with specific error
+                try:
+                    import requests
+                    requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
+                                json={"s3_key": s3_key, "status": "failed", "error": f"YouTube download failed: {str(e)}. Please ensure your cookies are fresh and try again."}, timeout=10)
+                except:
+                    pass
                 raise HTTPException(status_code=400, detail=f"YouTube download failed: {e}")
             finally:
                 if cookies_path:
@@ -786,6 +860,16 @@ class clipstream_ai:
                         print(f"[DEBUG] Deleted cookies file from S3: {cookies_s3_key}")
                     except Exception as e:
                         print(f"[INFO] Could not delete cookies file from S3 (expected if no delete permissions): {e}")
+        elif youtube_url:
+            # YouTube URL provided but no cookies - this should not happen with proper frontend validation
+            print("[ERROR] YouTube URL provided but no cookies file")
+            try:
+                import requests
+                requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
+                            json={"s3_key": s3_key, "status": "failed", "error": "Cookies file is required for YouTube downloads. Please upload your cookies.txt file."}, timeout=10)
+            except:
+                pass
+            raise HTTPException(status_code=400, detail="Cookies file is required for YouTube downloads")
         else:
             s3_client = boto3.client("s3")
             s3_client.download_file("clipstream-ai", s3_key, str(video_path))

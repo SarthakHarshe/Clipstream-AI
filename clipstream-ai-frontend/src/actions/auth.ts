@@ -31,14 +31,20 @@ export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
 
   const { email, password } = validationResult.data;
 
+  // Normalize email to lowercase for consistency
+  const normalizedEmail = email.toLowerCase().trim();
+
   try {
-    // Check if user already exists in the database
+    // Check if user already exists in the database (case-insensitive)
     const existingUser = await db.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
-      return { success: false, error: "User already exists" };
+      return {
+        success: false,
+        error: "An account with this email address already exists",
+      };
     }
 
     // Hash the password for secure storage
@@ -48,21 +54,44 @@ export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
     // Uses the Stripe secret key from environment variables
     const stripe = new Stripe(env.STRIPE_SECRET_KEY);
     const stripeCustomer = await stripe.customers.create({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
     });
 
     // Create new user in the database with Stripe customer ID
     await db.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         stripeCustomerId: stripeCustomer.id,
       },
     });
 
     return { success: true };
-  } catch {
-    // Handle any unexpected errors during signup
-    return { success: false, error: "An error occurred while signing up." };
+  } catch (error: unknown) {
+    // Log the actual error for debugging
+    console.error("Signup error:", error);
+
+    // Check if it's a Prisma unique constraint error
+    const errorString = String(error);
+    if (errorString.includes("P2002") && errorString.includes("email")) {
+      return {
+        success: false,
+        error: "An account with this email address already exists",
+      };
+    }
+
+    // Check if it's a Stripe error
+    if (errorString.includes("Stripe")) {
+      return {
+        success: false,
+        error: "Payment system error. Please try again.",
+      };
+    }
+
+    // Handle any other unexpected errors
+    return {
+      success: false,
+      error: "An error occurred while creating your account. Please try again.",
+    };
   }
 }

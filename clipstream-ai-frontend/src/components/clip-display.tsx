@@ -8,6 +8,7 @@
 import type { Clip } from "@prisma/client";
 import { useEffect, useState } from "react";
 import { Download, Loader2, Play, Film, Calendar } from "lucide-react";
+import CountUp from "./CountUp";
 import { getClipPlayUrl } from "~/actions/generation";
 import { Button } from "./ui/button";
 import { motion } from "framer-motion";
@@ -70,8 +71,18 @@ function ClipCard({ clip }: { clip: ClipWithUploadedFile }) {
       <div className="relative aspect-[9/16] bg-black/20">
         {isLoadingUrl ? (
           // Loading spinner while fetching play URL
-          <div className="flex h-full w-full items-center justify-center">
+          <div className="flex h-full w-full flex-col items-center justify-center space-y-2">
             <Loader2 className="h-8 w-8 animate-spin text-white/60" />
+            <div className="flex items-center space-x-1 text-sm text-white/60">
+              <span>Loading</span>
+              <CountUp
+                from={0}
+                to={99}
+                duration={2}
+                className="font-bold text-purple-400"
+              />
+              <span>%</span>
+            </div>
           </div>
         ) : playUrl ? (
           // Video player with controls when URL is available
