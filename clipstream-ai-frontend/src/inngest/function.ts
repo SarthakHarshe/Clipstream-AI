@@ -32,29 +32,40 @@ export const processVideo = inngest.createFunction(
     // Wrap the entire processing workflow in try-catch for error handling
     try {
       // Step 1: Check user credits and get S3 key and YouTube/cookies info
-      const { userId, credits, s3Key, youtubeUrl, cookiesPath } =
-        await step.run("check-credits", async () => {
-          // Fetch uploaded file and user credit info from DB
-          const uploadedFile = await db.uploadedFile.findUniqueOrThrow({
-            where: { id: uploadedFileId },
-            select: {
-              user: { select: { id: true, credits: true } },
-              s3Key: true,
-              youtubeUrl: true,
-              cookiesPath: true,
-            },
-          });
-          return {
-            userId: uploadedFile.user.id,
-            credits: uploadedFile.user.credits,
-            s3Key: uploadedFile.s3Key,
-            youtubeUrl: uploadedFile.youtubeUrl,
-            cookiesPath: uploadedFile.cookiesPath,
-          };
+      const {
+        userId,
+        credits,
+        s3Key,
+        youtubeUrl,
+        cookiesPath,
+        generateTrailer,
+        creditsUsed,
+      } = await step.run("check-credits", async () => {
+        // Fetch uploaded file and user credit info from DB
+        const uploadedFile = await db.uploadedFile.findUniqueOrThrow({
+          where: { id: uploadedFileId },
+          select: {
+            user: { select: { id: true, credits: true } },
+            s3Key: true,
+            youtubeUrl: true,
+            cookiesPath: true,
+            generateTrailer: true,
+            creditsUsed: true,
+          },
         });
+        return {
+          userId: uploadedFile.user.id,
+          credits: uploadedFile.user.credits,
+          s3Key: uploadedFile.s3Key,
+          youtubeUrl: uploadedFile.youtubeUrl ?? null,
+          cookiesPath: uploadedFile.cookiesPath ?? null,
+          generateTrailer: uploadedFile.generateTrailer,
+          creditsUsed: uploadedFile.creditsUsed,
+        };
+      });
 
-      // Step 2: If user has credits, process the video
-      if (credits > 0) {
+      // Step 2: If user has enough credits, process the video
+      if (credits >= creditsUsed) {
         // Update file status to 'processing'
         await step.run("set-status-processing", async () => {
           await db.uploadedFile.update({
@@ -71,6 +82,7 @@ export const processVideo = inngest.createFunction(
               s3_key: s3Key,
               youtube_url: youtubeUrl ?? null,
               cookies_s3_key: cookiesPath ?? null,
+              generate_trailer: generateTrailer,
             }),
             headers: {
               "Content-Type": "application/json",
@@ -83,13 +95,25 @@ export const processVideo = inngest.createFunction(
         const { clipsFound } = await step.run(
           "create-clips-in-db",
           async () => {
+            // For trailers, wait a bit for S3 eventual consistency
+            if (generateTrailer) {
+              console.log("Waiting for S3 consistency for trailer...");
+              await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 second delay
+            }
+
             const folderPrefix = s3Key.split("/")[0]!;
             const allKeys = await listS3ObjectsByPrefix(folderPrefix);
+            console.log(
+              `Found ${allKeys.length} files in S3 folder: ${allKeys.join(", ")}`,
+            );
+
             // Filter out the original video file
             const clipKeys = allKeys.filter(
               (key): key is string =>
                 key != undefined && !key.endsWith("original.mp4"),
             );
+            console.log(`Filtered clip keys: ${clipKeys.join(", ")}`);
+
             // Create DB records for each discovered clip
             if (clipKeys.length > 0) {
               await db.clip.createMany({
@@ -97,6 +121,8 @@ export const processVideo = inngest.createFunction(
                   s3Key: clipKey,
                   uploadedFileId,
                   userId,
+                  type: generateTrailer ? "trailer" : "clip",
+                  title: generateTrailer ? "AI Generated Trailer" : null,
                 })),
               });
             }
@@ -106,12 +132,14 @@ export const processVideo = inngest.createFunction(
 
         // Deduct credits based on number of clips found
         await step.run("deduct-credits", async () => {
-          await db.user.update({
-            where: { id: userId },
-            data: {
-              credits: { decrement: Math.min(credits, clipsFound) },
-            },
-          });
+          if (clipsFound > 0) {
+            await db.user.update({
+              where: { id: userId },
+              data: {
+                credits: { decrement: creditsUsed },
+              },
+            });
+          }
         });
 
         // Update file status to 'processed'
@@ -130,7 +158,7 @@ export const processVideo = inngest.createFunction(
           });
         });
       }
-    } catch (error) {
+    } catch {
       // Handle any errors during processing and mark file as failed
       await db.uploadedFile.update({
         where: { id: uploadedFileId },

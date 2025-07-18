@@ -45,6 +45,15 @@ export default async function DashboardPage() {
         orderBy: {
           createdAt: "desc", // Most recent clips first
         },
+        include: {
+          uploadedFile: {
+            select: {
+              id: true,
+              displayName: true,
+              createdAt: true,
+            },
+          },
+        },
       },
     },
   });

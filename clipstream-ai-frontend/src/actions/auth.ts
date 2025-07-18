@@ -25,7 +25,7 @@ export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
   if (!validationResult.success) {
     return {
       success: false,
-      error: validationResult.error.issues[0]?.message ?? "Invalid Input",
+      error: validationResult.error.issues[0]?.message ?? "Invalid input",
     };
   }
 
@@ -61,7 +61,7 @@ export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
     });
 
     return { success: true };
-  } catch (error) {
+  } catch {
     // Handle any unexpected errors during signup
     return { success: false, error: "An error occurred while signing up." };
   }

@@ -17,6 +17,7 @@ import { db } from "~/server/db";
 export async function generateUploadUrl(fileInfo: {
   filename: string;
   contentType: string;
+  generateTrailer?: boolean;
 }): Promise<{
   success: boolean;
   signedUrl: string;
@@ -63,6 +64,8 @@ export async function generateUploadUrl(fileInfo: {
       s3Key: key,
       displayName: fileInfo.filename,
       uploaded: false, // Will be set to true after successful upload
+      generateTrailer: fileInfo.generateTrailer ?? false,
+      creditsUsed: fileInfo.generateTrailer ? 4 : 1,
     },
     select: {
       id: true,

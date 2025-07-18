@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "~/server/db";
 import { auth } from "~/server/auth";
-import { UploadSource } from "@prisma/client";
 import { inngest } from "~/inngest/client";
 import { randomUUID } from "crypto";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const url = formData.get("url");
   const cookiesFile = formData.get("cookies");
+  const generateTrailer = formData.get("generateTrailer") === "true";
 
   if (
     typeof url !== "string" ||
@@ -59,9 +60,11 @@ export async function POST(req: NextRequest) {
       displayName: `YouTube: ${url}`,
       uploaded: true,
       status: "queued",
-      source: UploadSource.youtube,
+      source: "youtube" as const,
       youtubeUrl: url,
       cookiesPath: cookiesKey, // Now an S3 key, not a local path
+      generateTrailer: generateTrailer,
+      creditsUsed: generateTrailer ? 4 : 1,
     },
     select: { id: true, userId: true },
   });

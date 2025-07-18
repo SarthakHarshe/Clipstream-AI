@@ -38,6 +38,7 @@ class ProcessVideoRequest(BaseModel):
     s3_key: str  # The file path/name of the video in S3 (like "videos/my_video.mp4")
     youtube_url: str | None = None  # Optional: YouTube URL if this is a YouTube job
     cookies_s3_key: str | None = None  # Optional: S3 key for cookies.txt if YouTube job
+    generate_trailer: bool = False  # Whether to generate a trailer instead of individual clips
 
 # We're building a custom computer environment that has all the tools we need
 # like setting up a new computer with all the right software installed
@@ -300,6 +301,183 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, cl
     subprocess.run(ffmpeg_cmd, shell=True, check=True)
 
 
+# Function to create a trailer from multiple moments
+# This function combines the best moments from the video into a cohesive 60-second trailer
+# with animated titles, transitions, and enhanced visual effects
+def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_key: str, clip_moments: list, transcript_segments: list):
+    """
+    Create an AI-generated 60-second trailer that combines multiple short moments with animated titles.
+    
+    Args:
+        base_dir: Base directory for processing
+        original_video_path: Path to the original video file
+        s3_key: S3 key for output naming (should be the folder where clips go)
+        clip_moments: List of identified moments with start/end times
+        transcript_segments: Word-level transcript segments
+    """
+    print(f"Creating 60-second trailer from {len(clip_moments)} moments...")
+    
+    # Create trailer directory structure
+    trailer_dir = base_dir / "trailer"
+    trailer_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Select and process moments to fit within 60 seconds total
+    # Target: 3-4 moments of 12-15 seconds each + title cards + transitions
+    selected_moments = []
+    total_content_duration = 0
+    target_segment_duration = 12  # 12 seconds per segment
+    max_content_duration = 45  # 45 seconds of content + 15 seconds for titles/transitions
+    
+    for moment in clip_moments[:6]:  # Check up to 6 moments
+        if total_content_duration >= max_content_duration:
+            break
+            
+        segment_duration = moment["end"] - moment["start"]
+        
+        # Adjust segment to target duration
+        if segment_duration > target_segment_duration:
+            # Take the most interesting part (first part usually has the question)
+            moment["end"] = moment["start"] + target_segment_duration
+            segment_duration = target_segment_duration
+        elif segment_duration < 8:  # Skip segments that are too short
+            continue
+            
+        selected_moments.append(moment)
+        total_content_duration += segment_duration
+        
+        # Aim for 3-4 segments
+        if len(selected_moments) >= 4:
+            break
+    
+    if not selected_moments:
+        raise Exception("No suitable moments found for trailer")
+    
+    print(f"Selected {len(selected_moments)} moments with total duration: {total_content_duration:.1f}s")
+    
+    # Process each moment as a mini-clip
+    processed_clips = []
+    
+    for idx, moment in enumerate(selected_moments):
+        # Process this moment like a regular clip but store in trailer directory
+        moment_clip_path = process_trailer_segment(
+            trailer_dir, original_video_path, moment["start"], moment["end"], 
+            idx, transcript_segments
+        )
+        
+        if moment_clip_path and moment_clip_path.exists():
+            processed_clips.append({
+                "path": moment_clip_path,
+                "start": moment["start"],
+                "end": moment["end"],
+                "index": idx,
+                "duration": moment["end"] - moment["start"]
+            })
+    
+    if not processed_clips:
+        raise Exception("No valid clips generated for trailer")
+    
+    # Combine clips without any titles or overlays
+    final_trailer_path = combine_clips_simple(trailer_dir, processed_clips, s3_key)
+    
+    return final_trailer_path
+
+def process_trailer_segment(trailer_dir: pathlib.Path, original_video_path: pathlib.Path, start_time: float, end_time: float, segment_index: int, transcript_segments: list):
+    """
+    Process a single segment for the trailer (similar to process_clip but simplified).
+    """
+    segment_name = f"segment_{segment_index}"
+    segment_dir = trailer_dir / segment_name
+    segment_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create subdirectories
+    pyframes_path = segment_dir / "pyframes"
+    pyavi_path = segment_dir / "pyavi"
+    pyframes_path.mkdir(exist_ok=True)
+    pyavi_path.mkdir(exist_ok=True)
+    
+    # Extract segment
+    segment_path = segment_dir / f"{segment_name}.mp4"
+    duration = end_time - start_time
+    cut_command = (f"ffmpeg -i {original_video_path} -ss {start_time} -t {duration} "
+                   f"-c copy {segment_path}")
+    subprocess.run(cut_command, shell=True, check=True, capture_output=True, text=True)
+    
+    # Extract audio
+    audio_path = pyavi_path / "audio.wav"
+    extract_cmd = f"ffmpeg -i {segment_path} -vn -acodec pcm_s16le -ar 16000 -ac 1 {audio_path}"
+    subprocess.run(extract_cmd, shell=True, check=True, capture_output=True)
+    
+    # Copy for Columbia processing
+    shutil.copy(segment_path, trailer_dir / f"{segment_name}.mp4")
+    
+    # Run Columbia AI model
+    columbia_command = (f"python Columbia_test.py --videoName {segment_name} "
+                        f"--videoFolder {str(trailer_dir)} "
+                        f"--pretrainModel weight/finetuning_TalkSet.model")
+    
+    try:
+        subprocess.run(columbia_command, cwd="/asd", shell=True, check=True)
+    except Exception as e:
+        print(f"Columbia processing failed for segment {segment_index}: {e}")
+        return None
+    
+    # Load tracking data
+    tracks_path = segment_dir / "pywork" / "tracks.pckl"
+    scores_path = segment_dir / "pywork" / "scores.pckl"
+    
+    if not tracks_path.exists() or not scores_path.exists():
+        print(f"Missing tracking data for segment {segment_index}")
+        return None
+    
+    with open(tracks_path, "rb") as f:
+        tracks = pickle.load(f)
+    
+    with open(scores_path, "rb") as f:
+        scores = pickle.load(f)
+    
+    # Create vertical video
+    vertical_video_path = pyavi_path / "vertical.mp4"
+    create_vertical_video(tracks, scores, pyframes_path, pyavi_path, audio_path, vertical_video_path)
+    
+    # Add subtitles with shorter word limits for trailer
+    subtitled_path = pyavi_path / "subtitled.mp4"
+    create_subtitles_with_ffmpeg(transcript_segments, start_time, end_time, str(vertical_video_path), str(subtitled_path), max_words=2)
+    
+    return subtitled_path
+
+def combine_clips_simple(trailer_dir: pathlib.Path, processed_clips: list, s3_key: str):
+    """
+    Simple combination of processed clips without any titles or overlays.
+    """
+    print("Combining clips into trailer...")
+    
+    # Create input list for concatenation
+    input_list_path = trailer_dir / "input_list.txt"
+    with open(input_list_path, "w") as f:
+        for clip_info in processed_clips:
+            f.write(f"file '{clip_info['path']}'\n")
+    
+    # Final output setup
+    output_s3_key = f"{s3_key}/trailer.mp4"
+    final_trailer_path = trailer_dir / "final_trailer.mp4"
+    
+    # Combine clips with smooth fade transitions
+    concat_command = (f"ffmpeg -f concat -safe 0 -i {input_list_path} "
+                      f"-filter_complex \"[0:v]fade=in:0:30,fade=out:st=57:d=3[v]\" "
+                      f"-map \"[v]\" -map 0:a -c:v h264 -preset fast -crf 23 -c:a aac "
+                      f"-t 60 {final_trailer_path}")
+    
+    subprocess.run(concat_command, shell=True, check=True)
+    
+    # Upload to S3
+    s3_client = boto3.client("s3")
+    s3_client.upload_file(str(final_trailer_path), "clipstream-ai", output_s3_key)
+    
+    print(f"Trailer uploaded to S3: {output_s3_key}")
+    return output_s3_key
+
+
+
 # Function to process individual video clips
 # This function handles the complete pipeline for creating a single clip:
 # 1. Extracts the clip segment from the original video
@@ -459,7 +637,10 @@ class clipstream_ai:
     # Function to identify interesting moments in the transcript using Gemini AI
     # This analyzes the transcript to find question-answer pairs and stories suitable for clips
     def identify_moments(self, transcript: dict):
-        response = self.gemini_client.models.generate_content(model="gemini-2.5-flash", contents="""
+        try:
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash", 
+                contents="""
     This is a podcast video transcript consisting of word, along with each words's start and end time. I am looking to create clips between a minimum of 30 and maximum of 60 seconds long. The clip should never exceed 60 seconds.
 
     Your task is to find and extract stories, or question and their corresponding answers from the transcript.
@@ -479,9 +660,62 @@ class clipstream_ai:
 
     If there are no valid clips to extract, the output should be an empty list [], in JSON format. Also readable by json.loads() in Python.
 
-    The transcript is as follows:\n\n""" + str(transcript))
-        print(f"Identified moments response: {response.text}")
-        return response.text
+    The transcript is as follows:\n\n""" + str(transcript)
+            )
+            print(f"Identified moments response: {response.text}")
+            return response.text
+        except Exception as e:
+            print(f"[ERROR] Gemini API call failed for clips: {e}")
+            return "[]"
+    
+    # Function to identify trailer moments - optimized for shorter, impactful segments
+    def identify_trailer_moments(self, transcript: dict):
+        try:
+            # For very long transcripts (>1000 words), limit to first 30 minutes of content
+            # to avoid overwhelming Gemini and reduce processing time
+            transcript_str = str(transcript)
+            if len(transcript) > 1000:
+                print(f"Large transcript detected ({len(transcript)} words), limiting to first 30 minutes...")
+                # Find words around 30-minute mark (1800 seconds)
+                limited_transcript = [word for word in transcript if word.get("start", 0) <= 1800]
+                transcript_str = str(limited_transcript)
+                print(f"Reduced transcript to {len(limited_transcript)} words")
+            
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents="""
+    This is a podcast video transcript with word-level timestamps. I need to create a 60-second AI trailer that showcases the most engaging highlights.
+
+    Your task: Find 4-6 SHORT, IMPACTFUL moments (8-15 seconds each) that would make viewers want to watch the full video.
+
+    Focus on:
+    - Surprising revelations or "wow" moments
+    - Emotional peaks (excitement, shock, laughter)
+    - Controversial or thought-provoking statements
+    - Memorable quotes or one-liners
+    - Key insights or breakthrough moments
+    - Dramatic story moments or cliffhangers
+
+    Rules:
+    - Each moment must be 8-15 seconds (no longer, no shorter)
+    - Moments should NOT overlap
+    - Use exact timestamps from the transcript
+    - Prioritize standalone moments that don't need context
+    - Avoid greetings, thanks, or mundane conversation
+    - Select moments that create curiosity or emotional impact
+
+    Output format: [{"start": seconds, "end": seconds}, {"start": seconds, "end": seconds}, ...]
+    Must be valid JSON readable by json.loads()
+
+    If no suitable moments found, return: []
+
+    Transcript:\n\n""" + transcript_str
+            )
+            print(f"Identified trailer moments response: {response.text}")
+            return response.text
+        except Exception as e:
+            print(f"[ERROR] Gemini API call failed for trailer: {e}")
+            return "[]"
 
     @modal.fastapi_endpoint(method="POST")
     def process_video(self, request: ProcessVideoRequest, token: HTTPAuthorizationCredentials = Depends(auth_scheme)):
@@ -492,6 +726,7 @@ class clipstream_ai:
         s3_key = request.s3_key
         youtube_url = request.youtube_url
         cookies_s3_key = request.cookies_s3_key
+        generate_trailer = request.generate_trailer
 
         # Check if the user has permission to use our service
         if token.credentials != os.environ["AUTH_TOKEN"]:
@@ -506,8 +741,9 @@ class clipstream_ai:
         video_path = base_dir / "input.mp4"
         cookies_path = None
         
-        # Determine the S3 key for clips - use run_id for consistent structure
-        clips_s3_key = f"clips/{run_id}"
+        # Determine the S3 key for clips - use original s3_key directory for consistency with frontend
+        s3_key_dir = os.path.dirname(s3_key)
+        clips_s3_key = s3_key_dir
         
         if youtube_url and cookies_s3_key:
             # Download cookies file from S3 to a temp file
@@ -557,6 +793,12 @@ class clipstream_ai:
         transcript_segments_json = self.transcribe_video(base_dir, video_path)
         transcript_segments = json.loads(transcript_segments_json)
 
+        # Use different Gemini prompts for clips vs trailers
+        if generate_trailer:
+            print("Using trailer-optimized prompt for moment identification...")
+            identified_moments_raw = self.identify_trailer_moments(transcript_segments)
+        else:
+            print("Using clips-optimized prompt for moment identification...")
         identified_moments_raw = self.identify_moments(transcript_segments)
 
         cleaned_json_string = identified_moments_raw.strip()
@@ -574,15 +816,60 @@ class clipstream_ai:
             print("[ERROR] identified moments is not a list")
             clip_moments = []
 
-        # Step 3: Process each identified moment into a vertical video clip
-        # Limit to first 3 clips to avoid overwhelming the system
-        for index, moment in enumerate(clip_moments[:3]):
-            if "start" in moment and "end" in moment:
+        # Step 3: Process moments based on generation type
+        processing_success = False
+        
+        if generate_trailer:
+            # Create a single trailer combining multiple moments
+            print("Generating AI trailer with transitions and effects...")
+            try:
+                if not clip_moments:
+                    raise Exception("No moments identified by AI for trailer generation")
+                trailer_s3_key = create_trailer(base_dir, video_path, clips_s3_key, clip_moments, transcript_segments)
+                print(f"Trailer created successfully: {trailer_s3_key}")
+                processing_success = True
+            except Exception as e:
+                print(f"[ERROR] Trailer generation failed: {e}")
+                # Update status to failed in database via HTTP call to frontend
                 try:
-                    # Pass the full prefix for the clip
-                    process_clip(base_dir, video_path, clips_s3_key, moment["start"], moment["end"], index, transcript_segments)
-                except Exception as e:
-                    print(f"[ERROR] process_clip failed for clip {index}: {e}")
+                    import requests
+                    requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
+                                json={"s3_key": s3_key, "status": "failed", "error": str(e)}, timeout=10)
+                except:
+                    pass  # Don't fail if status update fails
+        else:
+            # Create individual clips (existing behavior)
+            print("Generating individual clips...")
+            clips_created = 0
+            # Limit to first 3 clips to avoid overwhelming the system
+            for index, moment in enumerate(clip_moments[:3]):
+                if "start" in moment and "end" in moment:
+                    try:
+                        # Pass the full prefix for the clip
+                        process_clip(base_dir, video_path, clips_s3_key, moment["start"], moment["end"], index, transcript_segments)
+                        clips_created += 1
+                    except Exception as e:
+                        print(f"[ERROR] process_clip failed for clip {index}: {e}")
+            
+            if clips_created > 0:
+                processing_success = True
+            elif not clip_moments:
+                print("[ERROR] No moments identified by AI for clip generation")
+                try:
+                    import requests
+                    requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
+                                json={"s3_key": s3_key, "status": "failed", "error": "No suitable moments found in video"}, timeout=10)
+                except:
+                    pass
+        
+        # Mark as processed if successful and deduct credits
+        if processing_success:
+            try:
+                import requests
+                requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
+                            json={"s3_key": s3_key, "status": "processed"}, timeout=10)
+            except:
+                pass
         
         # Clean up temporary files after processing
         if base_dir.exists():

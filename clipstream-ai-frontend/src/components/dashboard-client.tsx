@@ -17,7 +17,15 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
-import { Loader2, UploadCloud } from "lucide-react";
+import {
+  Loader2,
+  UploadCloud,
+  Upload,
+  Youtube,
+  Film,
+  Mic,
+  Download,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { generateUploadUrl } from "~/actions/s3";
 import { toast } from "sonner";
@@ -30,7 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { Badge } from "./ui/badge";
+
 import { useRouter } from "next/navigation";
 import { ClipDisplay } from "./clip-display";
 import { useForm } from "react-hook-form";
@@ -82,14 +90,10 @@ export function DashboardClient({
 }) {
   // State for file upload management
   const [files, setFiles] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [isProcessingYoutube, setIsProcessingYoutube] = useState(false);
-  const [showClipDisplay, setShowClipDisplay] = useState(false);
-  const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [generateTrailer, setGenerateTrailer] = useState(false);
 
   const router = useRouter();
 
@@ -97,6 +101,22 @@ export function DashboardClient({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Auto-refresh when there are processing files
+  useEffect(() => {
+    const hasProcessingFiles = uploadedFiles.some(
+      (file) => file.status === "processing",
+    );
+
+    if (hasProcessingFiles) {
+      const interval = setInterval(() => {
+        console.log("Auto-refreshing dashboard due to processing files...");
+        router.refresh();
+      }, 30000); // Refresh every 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [uploadedFiles, router]);
 
   // Safe date formatting to prevent hydration issues
   const formatDate = (date: Date) => {
@@ -108,6 +128,7 @@ export function DashboardClient({
   const [ytLoading, setYtLoading] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const [cookiesFile, setCookiesFile] = useState<File | null>(null);
+  const [ytGenerateTrailer, setYtGenerateTrailer] = useState(false);
   const {
     register: registerYt,
     handleSubmit: handleSubmitYt,
@@ -150,6 +171,7 @@ export function DashboardClient({
       const { success, signedUrl, uploadedFileId } = await generateUploadUrl({
         filename: file.name,
         contentType: file.type,
+        generateTrailer: generateTrailer,
       });
 
       if (!success) throw new Error("Failed to get upload URL");
@@ -177,7 +199,7 @@ export function DashboardClient({
           "Your video has been scheduled for processing. Check the status below.",
         duration: 5000,
       });
-    } catch (error) {
+    } catch {
       // Show error notification
       toast.error("Failed to upload video", {
         description:
@@ -203,6 +225,7 @@ export function DashboardClient({
       const formData = new FormData();
       formData.append("url", data.url);
       formData.append("cookies", cookiesFile);
+      formData.append("generateTrailer", ytGenerateTrailer.toString());
       await submitYoutubeUrl(formData);
       toast.success("YouTube video submitted successfully", {
         description:
@@ -296,21 +319,21 @@ export function DashboardClient({
               value="upload"
               className="glass-tab text-white data-[state=active]:bg-white/10"
             >
-              <span className="mr-2">📁</span>
+              <Upload className="mr-2 h-4 w-4" />
               Upload Content
             </TabsTrigger>
             <TabsTrigger
               value="youtube"
               className="glass-tab text-white data-[state=active]:bg-white/10"
             >
-              <span className="mr-2">📺</span>
+              <Youtube className="mr-2 h-4 w-4" />
               YouTube Import
             </TabsTrigger>
             <TabsTrigger
               value="my-clips"
               className="glass-tab text-white data-[state=active]:bg-white/10"
             >
-              <span className="mr-2">🎬</span>
+              <Film className="mr-2 h-4 w-4" />
               My Clips
             </TabsTrigger>
           </TabsList>
@@ -322,10 +345,10 @@ export function DashboardClient({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="floating-element"
+            className="floating-element w-full"
           >
-            <div className="gradient-border-card">
-              <Card className="glass-card card-content border-white/10 bg-white/5">
+            <div className="gradient-border-card w-full">
+              <Card className="glass-card card-content w-full border-white/10 bg-white/5">
                 <CardHeader className="space-y-4 pb-6 text-center">
                   <motion.div
                     className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-blue-600"
@@ -336,7 +359,7 @@ export function DashboardClient({
                       ease: "easeInOut",
                     }}
                   >
-                    <span className="text-2xl">🎙️</span>
+                    <Mic className="h-8 w-8 text-white" />
                   </motion.div>
                   <CardTitle className="text-2xl font-bold text-white">
                     Upload Your Content
@@ -346,82 +369,109 @@ export function DashboardClient({
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-8 pb-8">
                   {/* Enhanced Upload Zone */}
-                  <motion.div
-                    whileHover={{ scale: 1.01 }}
-                    transition={{ duration: 0.3 }}
-                    className="dropzone-container"
-                  >
-                    <Dropzone
-                      onDrop={handleDrop}
-                      accept={{ "video/mp4": [".mp4"] }}
-                      maxSize={500 * 1024 * 1024}
-                      disabled={uploading}
-                      maxFiles={1}
-                    >
-                      {(dropzone: DropzoneState) => (
-                        <div
-                          {...dropzone.getRootProps()}
-                          className="upload-zone space-y-6 !border-none !bg-transparent p-12 text-center"
-                          style={{
-                            border: "none",
-                            backgroundColor: "transparent",
-                            backgroundImage: "none",
-                          }}
-                        >
-                          <input {...dropzone.getInputProps()} />
-                          <motion.div
-                            animate={{
-                              y: uploading ? [0, -10, 0] : 0,
-                              opacity: uploading ? [1, 0.6, 1] : 1,
-                            }}
-                            transition={{
-                              duration: 2,
-                              repeat: uploading ? Infinity : 0,
-                              ease: "easeInOut",
-                            }}
-                            className="upload-icon-area mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500/20 to-blue-500/20"
+                  <div className="flex justify-center">
+                    <div className="w-full max-w-lg">
+                      <Dropzone
+                        onDrop={handleDrop}
+                        accept={{ "video/mp4": [".mp4"] }}
+                        maxSize={500 * 1024 * 1024}
+                        disabled={uploading}
+                        maxFiles={1}
+                        noClick={false}
+                        noKeyboard={false}
+                      >
+                        {(dropzone: DropzoneState) => (
+                          <div
+                            {...dropzone.getRootProps()}
+                            className="dropzone-clean outline-none"
                           >
-                            <UploadCloud className="h-10 w-10 text-white/60" />
-                          </motion.div>
-
-                          <div className="space-y-2">
-                            <h3 className="text-xl font-semibold text-white">
-                              Drop your video here
-                            </h3>
-                            <p className="text-white/60">
-                              or click to browse • MP4 files up to 500MB
-                            </p>
-                          </div>
-
-                          <Button
-                            className="primary-glass-button border-0 px-8 py-3 font-medium text-white"
-                            disabled={uploading}
-                          >
-                            {uploading ? (
+                            <input {...dropzone.getInputProps()} />
+                            <motion.div
+                              whileHover={{ scale: 1.01 }}
+                              transition={{ duration: 0.3 }}
+                              className="cursor-pointer rounded-2xl bg-white/5 p-12 text-center transition-all duration-300 hover:bg-purple-500/10"
+                              style={{
+                                border: "2px dashed rgba(255, 255, 255, 0.2)",
+                                outline: "none",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor =
+                                  "rgba(168, 85, 247, 0.4)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor =
+                                  "rgba(255, 255, 255, 0.2)";
+                              }}
+                              onClick={(_e) => {
+                                // Suppress the file picker API error
+                                try {
+                                  // Let the dropzone handle the click
+                                } catch {
+                                  // Silently handle any file picker errors
+                                  console.debug(
+                                    "File picker API not available, using fallback",
+                                  );
+                                }
+                              }}
+                            >
                               <motion.div
-                                className="flex items-center space-x-2"
-                                animate={{ opacity: [1, 0.6, 1] }}
-                                transition={{
-                                  duration: 1.5,
-                                  repeat: Infinity,
+                                animate={{
+                                  y: uploading ? [0, -5, 0] : 0,
+                                  opacity: uploading ? [1, 0.6, 1] : 1,
                                 }}
+                                transition={{
+                                  duration: 2,
+                                  repeat: uploading ? Infinity : 0,
+                                  ease: "easeInOut",
+                                }}
+                                className="mx-auto mt-10 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500/20 to-blue-500/20"
                               >
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>Processing...</span>
+                                <UploadCloud className="h-8 w-8 text-white/60" />
                               </motion.div>
-                            ) : (
-                              <span className="flex items-center space-x-2">
-                                <span>📂</span>
-                                <span>Choose File</span>
-                              </span>
-                            )}
-                          </Button>
-                        </div>
-                      )}
-                    </Dropzone>
-                  </motion.div>
+
+                              <div className="space-y-2">
+                                <h3 className="text-lg font-semibold text-white">
+                                  Drop your video here
+                                </h3>
+                                <p className="text-sm text-white/60">
+                                  or click to browse • MP4 files up to 500MB
+                                </p>
+
+                                <Button
+                                  className="primary-glass-button mt-6 border-0 px-8 py-3 font-medium text-white"
+                                  disabled={uploading}
+                                  onClick={(_e) => {
+                                    _e.stopPropagation();
+                                  }}
+                                >
+                                  {uploading ? (
+                                    <motion.div
+                                      className="flex items-center space-x-2"
+                                      animate={{ opacity: [1, 0.6, 1] }}
+                                      transition={{
+                                        duration: 1.5,
+                                        repeat: Infinity,
+                                      }}
+                                    >
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      <span>Processing...</span>
+                                    </motion.div>
+                                  ) : (
+                                    <span className="flex items-center space-x-2">
+                                      <span>📂</span>
+                                      <span>Choose File</span>
+                                    </span>
+                                  )}
+                                </Button>
+                              </div>
+                            </motion.div>
+                          </div>
+                        )}
+                      </Dropzone>
+                    </div>
+                  </div>
 
                   {/* Selected File Display */}
                   {files.length > 0 && (
@@ -431,7 +481,7 @@ export function DashboardClient({
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ type: "spring", stiffness: 300 }}
                     >
-                      <div className="card-content space-y-4 p-6">
+                      <div className="card-content space-y-6 p-6">
                         <div className="flex items-center space-x-4">
                           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-blue-500">
                             <span className="text-lg text-white">📄</span>
@@ -444,34 +494,136 @@ export function DashboardClient({
                               {files[0]?.name}
                             </p>
                           </div>
-                          <motion.div
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                          >
-                            <Button
-                              onClick={handleUpload}
-                              disabled={uploading}
-                              className={`primary-glass-button border-0 ${uploading ? "pulse-glow" : ""}`}
-                            >
-                              {uploading ? (
-                                <motion.div className="flex items-center space-x-2">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  <span>Creating Clips...</span>
-                                </motion.div>
-                              ) : (
-                                <span className="flex items-center space-x-2">
-                                  <span>🚀</span>
-                                  <span>Generate Clips</span>
-                                </span>
-                              )}
-                            </Button>
-                          </motion.div>
                         </div>
+
+                        {/* Generation Options */}
+                        <div className="space-y-4">
+                          <h5 className="text-sm font-medium text-white/80">
+                            Choose Generation Type:
+                          </h5>
+
+                          <div className="space-y-3">
+                            {/* Individual Clips Option */}
+                            <motion.div
+                              className={`glass-card cursor-pointer border-2 p-4 transition-all ${
+                                !generateTrailer
+                                  ? "border-blue-400 bg-blue-500/10"
+                                  : "border-white/10 bg-white/5 hover:border-white/20"
+                              }`}
+                              onClick={() => setGenerateTrailer(false)}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div
+                                  className={`h-4 w-4 rounded-full border-2 ${
+                                    !generateTrailer
+                                      ? "border-blue-400 bg-blue-400"
+                                      : "border-white/40"
+                                  }`}
+                                >
+                                  {!generateTrailer && (
+                                    <div className="h-full w-full scale-50 rounded-full bg-white" />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2">
+                                    <Film className="h-4 w-4 text-blue-400" />
+                                    <span className="font-medium text-white">
+                                      Individual Clips
+                                    </span>
+                                    <span className="rounded-full bg-blue-500/20 px-2 py-1 text-xs text-blue-300">
+                                      1 Credit
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-sm text-white/60">
+                                    Generate 3 separate clips (30-60 seconds
+                                    each) from the best moments
+                                  </p>
+                                </div>
+                              </div>
+                            </motion.div>
+
+                            {/* Trailer Option */}
+                            <motion.div
+                              className={`glass-card cursor-pointer border-2 p-4 transition-all ${
+                                generateTrailer
+                                  ? "border-purple-400 bg-purple-500/10"
+                                  : "border-white/10 bg-white/5 hover:border-white/20"
+                              }`}
+                              onClick={() => setGenerateTrailer(true)}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div
+                                  className={`h-4 w-4 rounded-full border-2 ${
+                                    generateTrailer
+                                      ? "border-purple-400 bg-purple-400"
+                                      : "border-white/40"
+                                  }`}
+                                >
+                                  {generateTrailer && (
+                                    <div className="h-full w-full scale-50 rounded-full bg-white" />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-lg">🎬</span>
+                                    <span className="font-medium text-white">
+                                      AI Trailer
+                                    </span>
+                                    <span className="rounded-full bg-purple-500/20 px-2 py-1 text-xs text-purple-300">
+                                      4 Credits
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-sm text-white/60">
+                                    Create a cinematic trailer with transitions,
+                                    titles, and effects combining the best
+                                    moments
+                                  </p>
+                                </div>
+                              </div>
+                            </motion.div>
+                          </div>
+                        </div>
+
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="flex justify-center"
+                        >
+                          <Button
+                            onClick={handleUpload}
+                            disabled={uploading}
+                            className={`primary-glass-button border-0 px-8 py-3 ${uploading ? "pulse-glow" : ""}`}
+                          >
+                            {uploading ? (
+                              <motion.div className="flex items-center space-x-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>
+                                  {generateTrailer
+                                    ? "Creating Trailer..."
+                                    : "Creating Clips..."}
+                                </span>
+                              </motion.div>
+                            ) : (
+                              <span className="flex items-center space-x-2">
+                                <span>{generateTrailer ? "🎬" : "🚀"}</span>
+                                <span>
+                                  {generateTrailer
+                                    ? "Generate Trailer"
+                                    : "Generate Clips"}
+                                </span>
+                              </span>
+                            )}
+                          </Button>
+                        </motion.div>
                       </div>
                     </motion.div>
                   )}
 
-                  {/* Processing Queue */}
+                  {/* Processing Queue - Conditional */}
                   {uploadedFiles.length > 0 && (
                     <motion.div
                       className="space-y-4"
@@ -646,7 +798,7 @@ export function DashboardClient({
                       ease: "easeInOut",
                     }}
                   >
-                    <span className="text-2xl">📺</span>
+                    <Youtube className="h-8 w-8 text-white" />
                   </motion.div>
                   <CardTitle className="text-2xl font-bold text-white">
                     Import from YouTube
@@ -664,26 +816,68 @@ export function DashboardClient({
                         <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500">
                           <span className="text-lg text-white">🔒</span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           <h4 className="font-semibold text-white">
                             Privacy & Security
                           </h4>
-                          <p className="text-sm leading-relaxed text-white/80">
-                            Upload your{" "}
-                            <code className="rounded bg-white/10 px-2 py-1 text-yellow-300">
-                              cookies.txt
-                            </code>{" "}
-                            file to download from YouTube. Your cookies are used
-                            only for this download and deleted immediately
-                            after.
-                          </p>
+                          <div className="space-y-3 text-sm leading-relaxed text-white/80">
+                            <p>
+                              To import videos from YouTube, we need your
+                              browser cookies to authenticate with YouTube on
+                              your behalf. This allows us to:
+                            </p>
+                            <ul className="ml-4 list-disc space-y-1 text-white/70">
+                              <li>
+                                Access videos you have permission to download
+                              </li>
+                              <li>Bypass age restrictions and region blocks</li>
+                              <li>
+                                Download private or unlisted videos you can
+                                access
+                              </li>
+                            </ul>
+                            <p>
+                              Upload your{" "}
+                              <code className="rounded bg-white/10 px-2 py-1 text-yellow-300">
+                                cookies.txt
+                              </code>{" "}
+                              file to enable this functionality. Your cookies
+                              are used exclusively for the download process and
+                              are permanently deleted from our servers
+                              immediately after use.
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <h5 className="text-sm font-medium text-white">
+                              Recommended Cookie Exporter:
+                            </h5>
+                            <div className="space-y-2">
+                              <a
+                                href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center space-x-2 rounded-lg bg-blue-600/20 px-3 py-2 text-sm text-blue-400 hover:bg-blue-600/30 hover:text-blue-300"
+                              >
+                                <span>🌐</span>
+                                <span>
+                                  Get cookies.txt LOCALLY Chrome Extension
+                                </span>
+                              </a>
+                              <p className="text-xs text-white/50">
+                                * Third-party open-source extension. ClipStream
+                                AI has no official association with this tool.
+                              </p>
+                            </div>
+                          </div>
+
                           <a
                             href="https://github.com/yt-dlp/yt-dlp#how-do-i-pass-cookies-to-yt-dlp"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-blue-400 underline hover:text-blue-300"
+                            className="inline-block text-sm text-blue-400 underline hover:text-blue-300"
                           >
-                            Learn how to export cookies →
+                            Learn more about cookie formats →
                           </a>
                         </div>
                       </div>
@@ -734,6 +928,97 @@ export function DashboardClient({
                           </p>
                         )}
                       </div>
+
+                      {/* Generation Type Selection */}
+                      <div className="space-y-4">
+                        <label className="block font-medium text-white">
+                          Choose Generation Type:
+                        </label>
+
+                        <div className="space-y-3">
+                          {/* Individual Clips Option */}
+                          <motion.div
+                            className={`glass-card cursor-pointer border-2 p-4 transition-all ${
+                              !ytGenerateTrailer
+                                ? "border-blue-400 bg-blue-500/10"
+                                : "border-white/10 bg-white/5 hover:border-white/20"
+                            }`}
+                            onClick={() => setYtGenerateTrailer(false)}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div
+                                className={`h-4 w-4 rounded-full border-2 ${
+                                  !ytGenerateTrailer
+                                    ? "border-blue-400 bg-blue-400"
+                                    : "border-white/40"
+                                }`}
+                              >
+                                {!ytGenerateTrailer && (
+                                  <div className="h-full w-full scale-50 rounded-full bg-white" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2">
+                                  <Film className="h-4 w-4 text-blue-400" />
+                                  <span className="font-medium text-white">
+                                    Individual Clips
+                                  </span>
+                                  <span className="rounded-full bg-blue-500/20 px-2 py-1 text-xs text-blue-300">
+                                    1 Credit
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm text-white/60">
+                                  Generate 3 separate clips (30-60 seconds each)
+                                  from the best moments
+                                </p>
+                              </div>
+                            </div>
+                          </motion.div>
+
+                          {/* Trailer Option */}
+                          <motion.div
+                            className={`glass-card cursor-pointer border-2 p-4 transition-all ${
+                              ytGenerateTrailer
+                                ? "border-purple-400 bg-purple-500/10"
+                                : "border-white/10 bg-white/5 hover:border-white/20"
+                            }`}
+                            onClick={() => setYtGenerateTrailer(true)}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div
+                                className={`h-4 w-4 rounded-full border-2 ${
+                                  ytGenerateTrailer
+                                    ? "border-purple-400 bg-purple-400"
+                                    : "border-white/40"
+                                }`}
+                              >
+                                {ytGenerateTrailer && (
+                                  <div className="h-full w-full scale-50 rounded-full bg-white" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-lg">🎬</span>
+                                  <span className="font-medium text-white">
+                                    AI Trailer
+                                  </span>
+                                  <span className="rounded-full bg-purple-500/20 px-2 py-1 text-xs text-purple-300">
+                                    4 Credits
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm text-white/60">
+                                  Create a cinematic trailer with transitions,
+                                  titles, and effects combining the best moments
+                                </p>
+                              </div>
+                            </div>
+                          </motion.div>
+                        </div>
+                      </div>
                     </div>
 
                     {ytError && (
@@ -767,8 +1052,12 @@ export function DashboardClient({
                           </motion.div>
                         ) : (
                           <span className="flex items-center justify-center space-x-2">
-                            <span>📥</span>
-                            <span>Import & Generate Clips</span>
+                            <Download className="h-4 w-4" />
+                            <span>
+                              {ytGenerateTrailer
+                                ? "Import & Generate Trailer"
+                                : "Import & Generate Clips"}
+                            </span>
                           </span>
                         )}
                       </Button>
@@ -800,7 +1089,7 @@ export function DashboardClient({
                       ease: "linear",
                     }}
                   >
-                    <span className="text-2xl">🎬</span>
+                    <Film className="h-8 w-8 text-white" />
                   </motion.div>
                   <CardTitle className="text-2xl font-bold text-white">
                     Your Generated Clips

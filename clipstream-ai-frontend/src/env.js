@@ -40,6 +40,13 @@ export const env = createEnv({
    * - Video processing endpoints: Required for external API calls
    */
   server: {
+    // Authentication and database configuration
+    AUTH_SECRET: z.string(),
+    DATABASE_URL: z.string(),
+    NODE_ENV: z
+      .enum(["development", "test", "production"])
+      .default("development"),
+
     // AWS and external service configuration
     AWS_REGION: z.string(),
     AWS_ACCESS_KEY_ID: z.string(),

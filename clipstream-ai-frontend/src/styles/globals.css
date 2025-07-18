@@ -98,40 +98,17 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Premium gradient background inspired by Apple design */
+    /* Clean dark background that works perfectly with Aurora */
     background: 
-      /* Fine noise texture - increased frequency for finer grain */
-      url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.015'/%3E%3C/svg%3E"),
-      /* Multi-layer gradient background */
-        radial-gradient(
-          ellipse at 20% 80%,
-          rgba(120, 119, 198, 0.15) 0%,
-          transparent 50%
-        ),
-      radial-gradient(
-        ellipse at 80% 20%,
-        rgba(255, 119, 198, 0.15) 0%,
-        transparent 50%
-      ),
-      radial-gradient(
-        ellipse at 40% 40%,
-        rgba(99, 102, 241, 0.1) 0%,
-        transparent 50%
-      ),
-      linear-gradient(
-        135deg,
-        #0a0a0f 0%,
-        #1a1a2e 25%,
-        #16213e 50%,
-        #0f1419 100%
-      );
+      /* Darker base gradient that complements Aurora */ linear-gradient(
+      135deg,
+      #0a0a0f 0%,
+      #1a1a2e 25%,
+      #16213e 50%,
+      #0f1419 100%
+    );
     background-attachment: fixed;
-    background-size:
-      100%,
-      150% 150%,
-      150% 150%,
-      200% 200%,
-      100%;
+    background-size: 100%;
   }
 }
 
@@ -747,6 +724,36 @@ div[role="button"].upload-zone:focus {
   transform: translateZ(0);
   backface-visibility: hidden;
   perspective: 1000px;
+}
+
+/* Clean Dropzone - Override all conflicting styles */
+.dropzone-clean,
+.dropzone-clean *,
+.dropzone-clean div,
+.dropzone-clean [role="button"] {
+  border: none !important;
+  background: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove the upload-icon-area border that causes duplicate borders */
+.dropzone-clean .upload-icon-area,
+div[class*="dropzone"] .upload-icon-area {
+  border: none !important;
+  background: transparent !important;
+}
+
+/* Ensure proper container sizing and prevent cropping */
+.floating-element {
+  min-height: fit-content !important;
+  height: auto !important;
+}
+
+.glass-card.card-content {
+  min-height: fit-content !important;
+  height: auto !important;
+  overflow: visible !important;
 }
 
 /* Gradient Border - Only Border, Not Fill */

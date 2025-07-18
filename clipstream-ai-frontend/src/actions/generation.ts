@@ -13,13 +13,7 @@ import { env } from "~/env";
 import { inngest } from "~/inngest/client";
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
-// Try importing UploadSource, fallback to string if not available
-let uploadSourceYoutube: any = "youtube";
-try {
-  // @ts-ignore
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  uploadSourceYoutube = require("@prisma/client").UploadSource.youtube;
-} catch {}
+// Note: UploadSource import handled directly in the files that need it
 
 // Trigger video processing for an uploaded file
 // Sends a background job to the Inngest queue and updates file status
@@ -103,7 +97,7 @@ export async function getClipPlayUrl(
     });
 
     return { success: true, url: signedUrl };
-  } catch (error) {
+  } catch {
     return { success: false, error: "Failed to generate play URL." };
   }
 }

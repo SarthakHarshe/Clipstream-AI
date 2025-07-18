@@ -6,7 +6,7 @@
 "use client";
 
 import Link from "next/link";
-import { Badge } from "./ui/badge";
+
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback } from "./ui/avatar";
 import { signOut } from "next-auth/react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
+import { Video, User, CreditCard, LogOut } from "lucide-react";
 
 // Main navigation header component
 const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
@@ -57,7 +58,7 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
                 whileHover={{ rotate: 180 }}
                 transition={{ duration: 0.6 }}
               >
-                <span className="text-sm font-bold text-white">C</span>
+                <Video className="h-4 w-4 text-white" />
               </motion.div>
               <div className="flex flex-col">
                 <span className="text-lg font-semibold tracking-tight text-white">
@@ -108,7 +109,7 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
                     whileHover={{ x: 2 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <span>💎</span>
+                    <CreditCard className="h-4 w-4" />
                     <span>Buy Credits</span>
                   </motion.span>
                 </Link>
@@ -129,7 +130,7 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
                   >
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 font-semibold text-white">
-                        {email.charAt(0).toUpperCase()}
+                        <User className="h-5 w-5" />
                       </AvatarFallback>
                     </Avatar>
                     {/* Online status indicator */}
@@ -157,7 +158,7 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
                   <DropdownMenuLabel className="flex items-center space-x-3 p-3">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-sm text-white">
-                        {email.charAt(0).toUpperCase()}
+                        <User className="h-4 w-4" />
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
@@ -178,7 +179,7 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
                       href="/dashboard/billing"
                       className="flex cursor-pointer items-center space-x-3 p-3"
                     >
-                      <span className="text-lg">💳</span>
+                      <CreditCard className="h-5 w-5" />
                       <div className="flex flex-col">
                         <span className="text-sm text-white">
                           Billing & Credits
@@ -196,7 +197,7 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
                     onClick={() => signOut({ redirectTo: "/login" })}
                     className="glass-button m-1 flex cursor-pointer items-center space-x-3 rounded-lg border-0 p-3 text-red-400 hover:text-red-300"
                   >
-                    <span className="text-lg">🚪</span>
+                    <LogOut className="h-5 w-5" />
                     <div className="flex flex-col">
                       <span className="text-sm">Sign Out</span>
                       <span className="text-xs text-white/60">

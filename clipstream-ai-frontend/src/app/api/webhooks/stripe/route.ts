@@ -5,7 +5,7 @@ import Stripe from "stripe";
 import { env } from "~/env";
 import { db } from "~/server/db";
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-06-30.basil",
 });
 
@@ -14,7 +14,7 @@ const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
 export async function POST(req: Request) {
   try {
     const body = await req.text();
-    const signature = req.headers.get("stripe-signature") || "";
+    const signature = req.headers.get("stripe-signature") ?? "";
 
     let event: Stripe.Event;
 
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      const customerId = session.customer as string;
+      const customerId = session.customer;
 
       const retreivedSession = await stripe.checkout.sessions.retrieve(
         session.id,
@@ -50,16 +50,18 @@ export async function POST(req: Request) {
             creditsToAdd = 500;
           }
 
-          await db.user.update({
-            where: {
-              stripeCustomerId: customerId,
-            },
-            data: {
-              credits: {
-                increment: creditsToAdd,
+          if (typeof customerId === "string") {
+            await db.user.update({
+              where: {
+                stripeCustomerId: customerId,
               },
-            },
-          });
+              data: {
+                credits: {
+                  increment: creditsToAdd,
+                },
+              },
+            });
+          }
         }
       }
     }

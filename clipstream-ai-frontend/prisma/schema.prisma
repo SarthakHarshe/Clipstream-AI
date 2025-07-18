@@ -200,6 +200,10 @@ model UploadedFile {
     youtubeUrl String?
     cookiesPath String? // Temporary path to cookies.txt for YouTube downloads
 
+    // Generation options
+    generateTrailer Boolean @default(false) // Whether to generate trailer instead of individual clips
+    creditsUsed Int @default(1) // Credits consumed for this processing (1 for clips, 4 for trailer)
+
     // Relationship to generated clips
     clips Clip[]
 
@@ -212,11 +216,27 @@ model UploadedFile {
 }
 
 /**
+ * Clip Type Enum
+ * 
+ * Defines the different types of clips that can be generated:
+ * - clip: Regular individual clips (30-60 seconds)
+ * - trailer: AI-generated trailer combining multiple moments with transitions
+ */
+enum ClipType {
+  clip
+  trailer
+}
+
+/**
  * Clip Model
  * 
  * Represents video clips generated from uploaded files.
  * Each clip is a processed video segment stored in S3
  * and linked to both the original file and the user.
+ * 
+ * Clip Types:
+ * - clip: Regular individual clips (1 credit)
+ * - trailer: AI-generated trailer with transitions (4 credits)
  * 
  * Relationships:
  * - belongs to User (creator)
@@ -228,6 +248,8 @@ model UploadedFile {
 model Clip {
     id String @id @default(cuid())
     s3Key String
+    type ClipType @default(clip)
+    title String? // Optional title for trailers
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
