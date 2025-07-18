@@ -486,22 +486,12 @@
   padding: 8px 16px;
   transition: all 0.3s ease;
   color: rgba(255, 255, 255, 0.7);
-  margin: 0;
-  display: block;
 }
 
 .glass-tab[data-state="active"] {
   background: rgba(255, 255, 255, 0.1);
   color: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* Custom active state for our navigation */
-.glass-tab.nav-active {
-  background: rgba(255, 255, 255, 0.15) !important;
-  color: white !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-  border-radius: 12px;
 }
 
 /* Enhanced Table */
