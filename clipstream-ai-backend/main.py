@@ -487,8 +487,8 @@ def combine_clips_simple(trailer_dir: pathlib.Path, processed_clips: list, s3_ke
 def process_clip(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_key: str, start_time: float, end_time: float, clip_index: int, transcript_segments: list):
     # Create unique clip name and S3 output path
     clip_name = f"clip_{clip_index}"
-    s3_key_dir = os.path.dirname(s3_key)
-    output_s3_key = f"{s3_key_dir}/{clip_name}.mp4"
+    # s3_key is already the folder path (e.g., "uuid"), not a full file path
+    output_s3_key = f"{s3_key}/{clip_name}.mp4"
 
     # Create directory structure for this clip
     clip_dir = base_dir / clip_name

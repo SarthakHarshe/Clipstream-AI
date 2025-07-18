@@ -368,11 +368,10 @@ export function DashboardClient({
                     Drop your video file here and watch AI create amazing clips
                   </CardDescription>
                 </CardHeader>
-
                 <CardContent className="space-y-8 pb-8">
                   {/* Enhanced Upload Zone */}
                   <div className="flex justify-center">
-                    <div className="w-full max-w-lg">
+                    <div className="mb-4 mb-8 w-full max-w-lg">
                       <Dropzone
                         onDrop={handleDrop}
                         accept={{ "video/mp4": [".mp4"] }}
