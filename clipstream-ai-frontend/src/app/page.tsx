@@ -1,12 +1,34 @@
+/**
+ * ClipStream AI Landing Page
+ *
+ * A modern, Apple Liquid Glass-inspired landing page that showcases the ClipStream AI
+ * platform's capabilities for automated video clip generation. Features advanced
+ * animations, interactive components, and professional user experience design.
+ *
+ * This page demonstrates the platform's ability to transform long-form content into
+ * viral clips using AI-powered processing, smart clipping, mobile optimization,
+ * and automatic subtitle generation.
+ *
+ * @author ClipStream AI Team
+ * @version 1.0.0
+ */
+
 "use client";
 
+// React and Next.js imports
 import Link from "next/link";
-import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
+
+// Animation and motion libraries
+import { motion, useScroll, useTransform } from "framer-motion";
+
+// UI components
 import { Button } from "~/components/ui/button";
+
+// Icons
 import { Bot, Scissors, Smartphone, MessageSquare } from "lucide-react";
 
-// Import React Bits Components
+// Custom components
 import CurvedLoop from "~/components/CurvedLoop";
 import MagicBento from "~/components/MagicBento";
 import SpotlightCard from "~/components/SpotlightCard";
@@ -14,14 +36,25 @@ import Aurora from "~/components/Aurora";
 import HeroAnimation from "~/components/HeroAnimation";
 import NavHeader from "~/components/NavHeader";
 
-// Liquid Glass Hero Component
+/**
+ * Liquid Glass Hero Component
+ *
+ * Creates a stunning hero section with liquid glass effects, animated backgrounds,
+ * and compelling call-to-action elements. Features parallax scrolling effects
+ * and smooth animations for an engaging user experience.
+ *
+ * @returns JSX.Element - The hero section component
+ */
 function LiquidGlassHero() {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Configure scroll-based animations
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end start"],
   });
 
+  // Transform scroll progress into visual effects
   const y = useTransform(scrollYProgress, [0, 1], ["0%", "50%"]);
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
 
@@ -31,7 +64,7 @@ function LiquidGlassHero() {
       className="relative flex min-h-screen items-center justify-center overflow-hidden pt-16"
       style={{ y, opacity }}
     >
-      {/* Aurora Background */}
+      {/* Aurora Background - Creates dynamic color gradients */}
       <div className="absolute inset-0 z-0">
         <Aurora
           colorStops={["#3A29FF", "#FF94B4", "#6366f1"]}
@@ -41,14 +74,15 @@ function LiquidGlassHero() {
         />
       </div>
 
-      {/* Liquid Glass Overlay */}
+      {/* Liquid Glass Overlay - Adds depth and glass effect */}
       <div className="absolute inset-0 z-10 bg-gradient-to-br from-black/40 via-transparent to-black/20" />
 
-      {/* Content */}
+      {/* Main Content Container */}
       <div className="relative z-20 mx-auto max-w-7xl px-4">
         <div className="grid min-h-[80vh] items-center gap-8 lg:grid-cols-2 lg:gap-16">
-          {/* Left side - Text content */}
+          {/* Left Column - Text Content */}
           <div className="flex flex-col justify-center text-center lg:pr-8 lg:text-left">
+            {/* Welcome Badge */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
@@ -60,6 +94,7 @@ function LiquidGlassHero() {
               </div>
             </motion.div>
 
+            {/* Main Headline */}
             <motion.h1
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
@@ -76,6 +111,7 @@ function LiquidGlassHero() {
               </span>
             </motion.h1>
 
+            {/* Subtitle */}
             <motion.p
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
@@ -87,6 +123,7 @@ function LiquidGlassHero() {
               workflows.
             </motion.p>
 
+            {/* Call-to-Action Buttons */}
             <motion.div
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
@@ -109,7 +146,7 @@ function LiquidGlassHero() {
             </motion.div>
           </div>
 
-          {/* Right side - Animation */}
+          {/* Right Column - Hero Animation */}
           <div className="flex items-center justify-center lg:justify-start lg:pl-8">
             <motion.div
               initial={{ opacity: 0, x: 50 }}
@@ -130,8 +167,17 @@ function LiquidGlassHero() {
   );
 }
 
-// Floating Feature Cards Component
+/**
+ * Floating Feature Cards Component
+ *
+ * Displays key platform features in an animated grid layout with hover effects
+ * and gradient icons. Each card showcases a different aspect of the ClipStream AI
+ * platform's capabilities.
+ *
+ * @returns JSX.Element - The feature cards grid
+ */
 function FloatingFeatureCards() {
+  // Feature data with icons, descriptions, and gradient colors
   const features = [
     {
       title: "AI-Powered Processing",
@@ -172,14 +218,19 @@ function FloatingFeatureCards() {
           className="group"
         >
           <SpotlightCard className="h-full border-white/10 bg-black/40 p-6 backdrop-blur-xl">
+            {/* Feature Icon with Gradient Background */}
             <div
               className={`h-12 w-12 rounded-xl bg-gradient-to-r ${feature.gradient} mb-4 flex items-center justify-center transition-transform duration-300 group-hover:scale-110`}
             >
               <feature.icon className="h-6 w-6 text-white" />
             </div>
+
+            {/* Feature Title */}
             <h3 className="mb-3 text-xl font-semibold text-white">
               {feature.title}
             </h3>
+
+            {/* Feature Description */}
             <p className="leading-relaxed text-white/70">
               {feature.description}
             </p>
@@ -190,11 +241,19 @@ function FloatingFeatureCards() {
   );
 }
 
-// CTA Section with Curved Loop
+/**
+ * Call-to-Action Section with Curved Loop Background
+ *
+ * Creates an engaging CTA section with animated background elements and
+ * compelling messaging to encourage user sign-ups. Features a curved
+ * loop animation and gradient buttons.
+ *
+ * @returns JSX.Element - The CTA section component
+ */
 function CTASection() {
   return (
     <div className="relative">
-      {/* Curved Loop Background */}
+      {/* Animated Background Loop */}
       <div className="absolute inset-0 opacity-20">
         <CurvedLoop
           marqueeText="Get Started Today ✦ Transform Your Content ✦ AI-Powered ✦ Professional Results ✦"
@@ -206,7 +265,7 @@ function CTASection() {
         />
       </div>
 
-      {/* Content */}
+      {/* Main Content */}
       <div className="relative z-10 py-16">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -215,14 +274,18 @@ function CTASection() {
           viewport={{ once: true }}
           className="mx-auto max-w-4xl px-4 text-center"
         >
+          {/* Section Title */}
           <h2 className="mb-8 text-4xl font-bold text-white md:text-6xl">
             Ready to Transform Your Content?
           </h2>
+
+          {/* Section Description */}
           <p className="mx-auto mb-12 max-w-2xl text-xl text-white/70">
             Join thousands of creators who are already using ClipStream AI to
             create engaging content and grow their audience.
           </p>
 
+          {/* Primary CTA Button */}
           <div className="flex flex-col justify-center gap-4 sm:flex-row">
             <Link href="/signup">
               <Button className="rounded-full bg-gradient-to-r from-purple-600 to-blue-600 px-12 py-6 text-xl font-semibold text-white shadow-2xl transition-all duration-300 hover:scale-105 hover:from-purple-700 hover:to-blue-700 hover:shadow-purple-500/25">
@@ -231,11 +294,12 @@ function CTASection() {
             </Link>
           </div>
 
+          {/* Trust Indicators */}
           <p className="mt-6 text-sm text-white/50">
             No credit card required • Free trial available
           </p>
 
-          {/* Creator Credit */}
+          {/* Creator Attribution */}
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
@@ -262,19 +326,28 @@ function CTASection() {
 }
 
 /**
- * ClipStream AI Landing Page - Apple Liquid Glass Inspired Design
+ * ClipStream AI Landing Page - Main Component
  *
  * Modern, clean landing page following Apple's Liquid Glass design principles
  * and Awwwards best practices. Features React Bits components for advanced
  * interactions and professional user experience.
+ *
+ * The page is structured with:
+ * - Navigation header
+ * - Hero section with liquid glass effects
+ * - Features showcase with animated cards
+ * - How it works section with interactive bento grid
+ * - Call-to-action section with curved animations
+ *
+ * @returns JSX.Element - The complete landing page
  */
 export default function HomePage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-black">
-      {/* Navigation */}
+      {/* Navigation Header */}
       <NavHeader />
 
-      {/* Hero Section */}
+      {/* Hero Section with Liquid Glass Effects */}
       <LiquidGlassHero />
 
       {/* Features Section */}
@@ -283,6 +356,7 @@ export default function HomePage() {
         className="relative bg-gradient-to-b from-black to-gray-900 py-24"
       >
         <div className="mx-auto max-w-7xl px-4">
+          {/* Section Header */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -298,6 +372,7 @@ export default function HomePage() {
             </p>
           </motion.div>
 
+          {/* Feature Cards Grid */}
           <FloatingFeatureCards />
         </div>
       </section>
@@ -307,6 +382,7 @@ export default function HomePage() {
         id="how-it-works"
         className="relative bg-gradient-to-b from-gray-900 to-black py-16"
       >
+        {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -322,6 +398,7 @@ export default function HomePage() {
           </p>
         </motion.div>
 
+        {/* Interactive Magic Bento Grid */}
         <div className="flex justify-center">
           <MagicBento
             textAutoHide={true}
@@ -338,7 +415,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Call-to-Action Section */}
       <section className="relative bg-gradient-to-b from-gray-900 to-black py-16">
         <CTASection />
       </section>

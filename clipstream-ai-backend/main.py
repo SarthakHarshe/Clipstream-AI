@@ -1,103 +1,157 @@
-#imports
-from codecs import ignore_errors
+"""
+ClipStream AI - Automated Video Processing and Clip Generation Service
+
+This module provides a cloud-based video processing service that automatically:
+- Transcribes video content using WhisperX
+- Identifies engaging moments using Google Gemini AI
+- Generates vertical video clips optimized for social media
+- Creates AI-powered trailers with narrative flow
+- Supports both direct video uploads and YouTube video processing
+
+The service runs on Modal cloud infrastructure with GPU acceleration for fast processing.
+
+Author: ClipStream AI Team
+License: Proprietary
+"""
+
+# Standard library imports
 import codecs
-from configparser import Interpolation
-from ctypes import resize
 import enum
 import glob
 import json
-from ntpath import exists
+import os
 import pathlib
 import pickle
 import shutil
 import subprocess
+import tempfile
 import time
-from tracemalloc import start
 import uuid
-import modal  # Modal lets us run Python code in the cloud with GPUs
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials  # Handles API security with tokens
-from fastapi import Depends, HTTPException, status  # FastAPI framework for building web APIs
-from pydantic import BaseModel  # Helps validate and structure our data
-import os
-import boto3  # AWS SDK for talking to S3 storage
-import whisperx
-from google import genai
-import numpy as np
-from tqdm import tqdm
+
+# Third-party imports
+import boto3
 import cv2
 import ffmpegcv
+import modal
+import numpy as np
 import pysubs2
 import yt_dlp
-import sqlite3
-import tempfile
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from google import genai
+from pydantic import BaseModel
+from tqdm import tqdm
+import whisperx
 
 
-# This class defines what data we expect when someone wants to process a video
-# like a form that users need to fill out
 class ProcessVideoRequest(BaseModel):
-    s3_key: str  # The file path/name of the video in S3 (like "videos/my_video.mp4")
-    youtube_url: str | None = None  # Optional: YouTube URL if this is a YouTube job
-    cookies_s3_key: str | None = None  # Optional: S3 key for cookies.txt if YouTube job
-    generate_trailer: bool = False  # Whether to generate a trailer instead of individual clips
+    """
+    Request model for video processing operations.
+    
+    This model defines the structure and validation rules for incoming
+    video processing requests, supporting both direct uploads and YouTube URLs.
+    
+    Attributes:
+        s3_key: S3 object key for the video file (e.g., "videos/uuid/filename.mp4")
+        youtube_url: Optional YouTube URL for processing YouTube videos
+        cookies_s3_key: Optional S3 key for cookies.txt file (required for YouTube processing)
+        generate_trailer: Flag to generate a trailer instead of individual clips
+    """
+    s3_key: str
+    youtube_url: str | None = None
+    cookies_s3_key: str | None = None
+    generate_trailer: bool = False
 
-# We're building a custom computer environment that has all the tools we need
-# like setting up a new computer with all the right software installed
+
+# Modal cloud infrastructure configuration
+# Creates a custom container image with all required dependencies
 image = (modal.Image.from_registry("nvidia/cuda:12.4.0-devel-ubuntu22.04", add_python="3.12")
-        # Start with NVIDIA's image that has GPU support and add Python 3.12
-        .apt_install(["ffmpeg","libgl1-mesa-glx", "wget", "libcudnn8", "libcudnn8-dev"])
-        # Install system tools we need:
-        # - ffmpeg: for working with video files
-        # - libgl1-mesa-glx: for graphics support (some AI libraries need this)
-        # - wget: for downloading files from the internet
-        # - libcudnn8, libcudnn8-dev: NVIDIA's deep learning library for faster AI processing
+        .apt_install([
+            "ffmpeg",           # Video processing and manipulation
+            "libgl1-mesa-glx",  # OpenGL libraries for computer vision
+            "wget",             # File downloading utility
+            "libcudnn8",        # NVIDIA cuDNN for deep learning acceleration
+            "libcudnn8-dev"     # Development headers for cuDNN
+        ])
         .pip_install_from_requirements("requirements.txt")
-        # Install all the Python packages we need (PyTorch, OpenCV, etc.)
-        .run_commands(["mkdir -p /usr/share/fonts/truetype/custom",
-                       "wget -O /usr/share/fonts/truetype/custom/Anton-Regular.ttf https://fonts.gstatic.com/s/anton/v23/1Ptgg87LROyAm3Kz-Co.ttf",
-                       "fc-cache -f -v"])
-        # Set up fonts for video captioning:
-        # 1. Create a folder for custom fonts
-        # 2. Download the Anton font (used for putting text on videos)
-        # 3. Tell the system about the new font
+        .run_commands([
+            "mkdir -p /usr/share/fonts/truetype/custom",
+            "wget -O /usr/share/fonts/truetype/custom/Anton-Regular.ttf https://fonts.gstatic.com/s/anton/v23/1Ptgg87LROyAm3Kz-Co.ttf",
+            "fc-cache -f -v"
+        ])
         .add_local_dir("asd", "/asd", copy=True))
-        # Copy our AI model code and files to the cloud computer
 
-# Create our main application - this is like creating a new app on Modal
+# Initialize Modal application
 app = modal.App("clipstream-ai", image=image)
 
-# Set up permanent storage for AI models so we don't have to download them every time
+# Persistent storage for AI models to avoid repeated downloads
 volume = modal.Volume.from_name("clipstream-ai-model-cache", create_if_missing=True)
-mount_path = "/root/.cache/torch"  # This is where PyTorch stores downloaded models
+mount_path = "/root/.cache/torch"
 
-# Set up security - only people with the right token can use our service
-auth_scheme = HTTPBearer()  # This checks for a "Bearer token" in the request
+# Authentication scheme for API security
+auth_scheme = HTTPBearer()
 
-# Function to create vertical video with AI-generated camera movements
-# This function takes tracking data and creates a vertical video optimized for social media
 def create_vertical_video(tracks, scores, pyframes_path, pyavi_path, audio_path, output_path, framerate=25):
+    """
+    Creates a vertical video optimized for social media platforms.
+    
+    This function processes face tracking data to generate intelligent camera movements
+    that follow the most engaging speaker in the video. It creates a 1080x1920 vertical
+    format video with smooth transitions and professional visual effects.
+    
+    Args:
+        tracks: List of face tracking data from Columbia AI model
+        scores: List of engagement scores for each tracked face
+        pyframes_path: Path to directory containing extracted video frames
+        pyavi_path: Path to directory for video output files
+        audio_path: Path to the extracted audio file
+        output_path: Path where the final vertical video will be saved
+        framerate: Target framerate for the output video (default: 25 fps)
+    
+    Returns:
+        None. The processed video is saved to output_path.
+    
+    Raises:
+        FileNotFoundError: If required input files are missing
+        subprocess.CalledProcessError: If ffmpeg processing fails
+    """
+    # Target dimensions for vertical social media format (9:16 aspect ratio)
     target_width = 1080
     target_height = 1920
 
+    # Get sorted list of frame files
     flist = glob.glob(os.path.join(pyframes_path, "*.jpg"))
     flist.sort()
 
+    # Initialize face tracking data for each frame
     faces = [[] for _ in range(len(flist))]
 
+    # Process tracking data to calculate average engagement scores
     for tidx, track in enumerate(tracks):
         score_array = scores[tidx]
         for fidx, frame in enumerate(track["track"]["frame"].tolist()):
+            # Calculate average score over a 60-frame window (±30 frames)
             slice_start = max(fidx - 30, 0)
             slice_end = min(fidx + 30, len(score_array))
             score_slice = score_array[slice_start:slice_end]
-            avg_score = float(np.mean(score_slice)
-                              if len(score_slice) > 0 else 0)
+            avg_score = float(np.mean(score_slice) if len(score_slice) > 0 else 0)
 
-            faces[frame].append(
-                {'track': tidx, 'score': avg_score, 's': track['proc_track']["s"][fidx], 'x': track['proc_track']["x"][fidx], 'y': track['proc_track']["y"][fidx]})
+            # Store face data with position and engagement score
+            faces[frame].append({
+                'track': tidx,
+                'score': avg_score,
+                's': track['proc_track']["s"][fidx],
+                'x': track['proc_track']["x"][fidx],
+                'y': track['proc_track']["y"][fidx]
+            })
 
+    # Temporary video path for processing
     temp_video_path = os.path.join(pyavi_path, "video_only.mp4")
 
+    # Initialize video writer
     vout = None
+    
+    # Process each frame to create vertical video
     for fidx, fname in tqdm(enumerate(flist), total=len(flist), desc="Creating vertical video"):
         img = cv2.imread(fname)
         if img is None:
@@ -105,12 +159,14 @@ def create_vertical_video(tracks, scores, pyframes_path, pyavi_path, audio_path,
 
         current_faces = faces[fidx]
 
-        max_score_face = max(
-            current_faces, key=lambda face: face['score']) if current_faces else None
+        # Find the face with the highest engagement score
+        max_score_face = max(current_faces, key=lambda face: face['score']) if current_faces else None
 
+        # Filter out low-engagement faces
         if max_score_face and max_score_face['score'] < 0:
             max_score_face = None
 
+        # Initialize video writer on first frame
         if vout is None:
             vout = ffmpegcv.VideoWriterNV(
                 file=temp_video_path,
@@ -119,68 +175,65 @@ def create_vertical_video(tracks, scores, pyframes_path, pyavi_path, audio_path,
                 resize=(target_width, target_height)
             )
 
-        if max_score_face:
-            mode = "crop"
-        else:
-            mode = "resize"
+        # Choose processing mode based on face detection
+        mode = "crop" if max_score_face else "resize"
 
         if mode == "resize":
+            # Resize mode: Scale video to fit vertical format with blurred background
             scale = target_width / img.shape[1]
             resized_height = int(img.shape[0] * scale)
-            resized_image = cv2.resize(
-                img, (target_width, resized_height), interpolation=cv2.INTER_AREA)
+            resized_image = cv2.resize(img, (target_width, resized_height), interpolation=cv2.INTER_AREA)
 
-            scale_for_bg = max(
-                target_width / img.shape[1], target_height / img.shape[0])
+            # Create blurred background by scaling and blurring the original image
+            scale_for_bg = max(target_width / img.shape[1], target_height / img.shape[0])
             bg_width = int(img.shape[1] * scale_for_bg)
-            bg_heigth = int(img.shape[0] * scale_for_bg)
+            bg_height = int(img.shape[0] * scale_for_bg)
 
-            blurred_background = cv2.resize(img, (bg_width, bg_heigth))
-            blurred_background = cv2.GaussianBlur(
-                blurred_background, (121, 121), 0)
+            blurred_background = cv2.resize(img, (bg_width, bg_height))
+            blurred_background = cv2.GaussianBlur(blurred_background, (121, 121), 0)
 
+            # Center crop the background to target dimensions
             crop_x = (bg_width - target_width) // 2
-            crop_y = (bg_heigth - target_height) // 2
-            blurred_background = blurred_background[crop_y:crop_y +
-                                                    target_height, crop_x:crop_x + target_width]
+            crop_y = (bg_height - target_height) // 2
+            blurred_background = blurred_background[crop_y:crop_y + target_height, crop_x:crop_x + target_width]
 
+            # Center the resized image on the blurred background
             center_y = (target_height - resized_height) // 2
-            blurred_background[center_y:center_y +
-                               resized_height, :] = resized_image
+            blurred_background[center_y:center_y + resized_height, :] = resized_image
 
             vout.write(blurred_background)
 
         elif mode == "crop":
+            # Crop mode: Follow the most engaging face with intelligent cropping
             scale = target_height / img.shape[0]
-            resized_image = cv2.resize(
-                img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+            resized_image = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
             frame_width = resized_image.shape[1]
 
-            center_x = int(
-                max_score_face["x"] * scale if max_score_face else frame_width // 2)
-            top_x = max(min(center_x - target_width // 2,
-                        frame_width - target_width), 0)
+            # Calculate center position based on face location
+            center_x = int(max_score_face["x"] * scale if max_score_face else frame_width // 2)
+            top_x = max(min(center_x - target_width // 2, frame_width - target_width), 0)
 
-            image_cropped = resized_image[0:target_height,
-                                          top_x:top_x + target_width]
-
+            # Crop the frame to target dimensions
+            image_cropped = resized_image[0:target_height, top_x:top_x + target_width]
             vout.write(image_cropped)
 
+    # Release video writer
     if vout:
         vout.release()
 
+    # Combine video with audio using ffmpeg
     ffmpeg_command = (f"ffmpeg -y -i {temp_video_path} -i {audio_path} "
                       f"-c:v h264 -preset fast -crf 23 -c:a aac -b:a 128k "
                       f"{output_path}")
     subprocess.run(ffmpeg_command, shell=True, check=True, text=True)
 
-def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, clip_end: float,clip_video_path: str, output_path: str, max_words: int = 5):
+def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start: float, clip_end: float, clip_video_path: str, output_path: str, max_words: int = 5):
     """
-    Creates subtitles for a video clip using transcript segments and embeds them using ffmpeg.
+    Creates and embeds subtitles into video clips using transcript data.
     
-    This function takes word-level transcript segments and groups them into subtitle lines
-    that are displayed on the video. It creates an ASS subtitle file and then uses ffmpeg
-    to burn the subtitles directly into the video.
+    This function processes word-level transcript segments to create professional
+    subtitles that are burned directly into the video. It groups words into
+    readable lines and applies styling optimized for vertical video format.
     
     Args:
         transcript_segments: List of word segments with start/end times and text
@@ -189,13 +242,18 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, cl
         clip_video_path: Path to the input video file
         output_path: Path where the video with subtitles will be saved
         max_words: Maximum number of words per subtitle line (default: 5)
+    
+    Returns:
+        None. The processed video with embedded subtitles is saved to output_path.
+    
+    Raises:
+        subprocess.CalledProcessError: If ffmpeg subtitle embedding fails
     """
     # Create temporary directory for subtitle files
-    temp_dir= os.path.dirname(output_path)
+    temp_dir = os.path.dirname(output_path)
     subtitle_path = os.path.join(temp_dir, "temp_subtitles.ass")
 
-    # Filter transcript segments to only include words that fall within the clip timeframe
-    # This ensures we only show subtitles for words that are actually spoken in this clip
+    # Filter transcript segments to only include words within the clip timeframe
     clip_segments = [segment for segment in transcript_segments 
                      if segment.get("start") is not None
                      and segment.get("end") is not None
@@ -219,7 +277,6 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, cl
             continue
         
         # Convert absolute timestamps to relative timestamps within the clip
-        # This ensures subtitles are timed correctly relative to the clip start
         start_rel = max(0.0, seg_start - clip_start)
         end_rel = max(0.0, seg_end - clip_start)
 
@@ -243,12 +300,12 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, cl
              current_words.append(word)
              current_end = end_rel
 
-    # Don't forget to add the last subtitle line if there are remaining words
+    # Add the last subtitle line if there are remaining words
     if current_words:
         subtitles.append((current_start, current_end, ' '.join(current_words)))
 
     # Create ASS subtitle file using pysubs2 library
-    # ASS (Advanced SubStation Alpha) is a subtitle format that supports rich styling
+    # ASS (Advanced SubStation Alpha) supports rich styling and positioning
     subs = pysubs2.SSAFile()
 
     # Configure subtitle file metadata for vertical video format (1080x1920)
@@ -261,17 +318,17 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, cl
     # Create subtitle styling for optimal readability on vertical videos
     style_name = "Default"
     new_style = pysubs2.SSAStyle()
-    new_style.fontname = "Anton"
-    new_style.fontsize = 140
-    new_style.primarycolor = pysubs2.Color(255, 255, 255)
-    new_style.outline = 2.0
-    new_style.shadow = 2.0
-    new_style.shadowcolor = pysubs2.Color(0, 0, 0, 128)
-    new_style.alignment = 2
-    new_style.marginl = 50
-    new_style.marginr = 50
-    new_style.marginv = 50
-    new_style.spacing = 0.0
+    new_style.fontname = "Anton"  # Professional font for social media
+    new_style.fontsize = 140  # Large font size for mobile viewing
+    new_style.primarycolor = pysubs2.Color(255, 255, 255)  # White text
+    new_style.outline = 2.0  # Text outline for contrast
+    new_style.shadow = 2.0  # Drop shadow for readability
+    new_style.shadowcolor = pysubs2.Color(0, 0, 0, 128)  # Semi-transparent black shadow
+    new_style.alignment = 2  # Center alignment
+    new_style.marginl = 50  # Left margin
+    new_style.marginr = 50  # Right margin
+    new_style.marginv = 50  # Vertical margin
+    new_style.spacing = 0.0  # No letter spacing
 
     # Apply the style to the subtitle file
     subs.styles[style_name] = new_style
@@ -289,32 +346,32 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, cl
     subs.save(subtitle_path)
         
     # Use ffmpeg to burn subtitles directly into the video
-    # This creates a new video file with subtitles permanently embedded
-    # -y: Overwrite output file if it exists
-    # -i: Input video file
-    # -vf "ass=subtitle_path": Apply ASS subtitle file as video filter
-    # -c:v h264: Use H.264 video codec
-    # -preset fast: Fast encoding preset for reasonable speed/quality balance
-    # -crf 23: Constant Rate Factor for quality control (lower = better quality)
     ffmpeg_cmd = (f"ffmpeg -y -i {clip_video_path} -vf \"ass={subtitle_path}\" "
                   f"-c:v h264 -preset fast -crf 23 {output_path}")
     subprocess.run(ffmpeg_cmd, shell=True, check=True)
 
 
-# Function to create a trailer from multiple moments
-# This function combines the best moments from the video into a cohesive 60-second trailer
-# with animated titles, transitions, and enhanced visual effects
 def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_key: str, clip_moments: list, transcript_segments: list):
     """
-    Create an AI-generated 60-second trailer that combines multiple moments with narrative flow.
-    Uses a content-focused approach that respects natural moment durations and builds suspense.
+    Creates an AI-generated 60-second trailer from multiple video moments.
+    
+    This function intelligently selects and combines the most engaging moments
+    from a video to create a compelling trailer optimized for social media.
+    It uses a narrative-focused approach that builds suspense and maintains
+    viewer engagement throughout the trailer.
     
     Args:
-        base_dir: Base directory for processing
-        original_video_path: Path to the original video file
-        s3_key: S3 key for output naming (should be the folder where clips go)
-        clip_moments: List of identified moments with start/end times
-        transcript_segments: Word-level transcript segments
+        base_dir: Base directory for processing operations
+        original_video_path: Path to the source video file
+        s3_key: S3 key for output naming (folder path for clips)
+        clip_moments: List of identified moments with start/end timestamps
+        transcript_segments: Word-level transcript data for subtitle generation
+    
+    Returns:
+        str: S3 key of the generated trailer file
+    
+    Raises:
+        Exception: If no suitable moments are found or processing fails
     """
     print(f"Creating narrative-focused trailer from {len(clip_moments)} moments...")
     
@@ -416,34 +473,54 @@ def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3
 
 def process_trailer_segment(trailer_dir: pathlib.Path, original_video_path: pathlib.Path, start_time: float, end_time: float, segment_index: int, transcript_segments: list):
     """
-    Process a single segment for the trailer (similar to process_clip but simplified).
+    Processes a single video segment for trailer generation.
+    
+    This function handles the complete pipeline for creating a trailer segment,
+    including video extraction, face tracking, vertical video creation, and
+    subtitle generation. It's optimized for trailer segments with shorter
+    subtitle lines for better readability.
+    
+    Args:
+        trailer_dir: Directory for trailer processing operations
+        original_video_path: Path to the source video file
+        start_time: Start time of the segment in seconds
+        end_time: End time of the segment in seconds
+        segment_index: Index of the segment for naming purposes
+        transcript_segments: Word-level transcript data for subtitles
+    
+    Returns:
+        pathlib.Path: Path to the processed segment video with subtitles, or None if processing fails
+    
+    Raises:
+        subprocess.CalledProcessError: If video processing commands fail
+        FileNotFoundError: If required tracking data is missing
     """
     segment_name = f"segment_{segment_index}"
     segment_dir = trailer_dir / segment_name
     segment_dir.mkdir(parents=True, exist_ok=True)
     
-    # Create subdirectories
+    # Create subdirectories for processing
     pyframes_path = segment_dir / "pyframes"
     pyavi_path = segment_dir / "pyavi"
     pyframes_path.mkdir(exist_ok=True)
     pyavi_path.mkdir(exist_ok=True)
     
-    # Extract segment
+    # Extract video segment from original video
     segment_path = segment_dir / f"{segment_name}.mp4"
     duration = end_time - start_time
     cut_command = (f"ffmpeg -i {original_video_path} -ss {start_time} -t {duration} "
                    f"-c copy {segment_path}")
     subprocess.run(cut_command, shell=True, check=True, capture_output=True, text=True)
     
-    # Extract audio
+    # Extract audio for processing
     audio_path = pyavi_path / "audio.wav"
     extract_cmd = f"ffmpeg -i {segment_path} -vn -acodec pcm_s16le -ar 16000 -ac 1 {audio_path}"
     subprocess.run(extract_cmd, shell=True, check=True, capture_output=True)
     
-    # Copy for Columbia processing
+    # Copy segment for Columbia AI processing
     shutil.copy(segment_path, trailer_dir / f"{segment_name}.mp4")
     
-    # Run Columbia AI model
+    # Run Columbia AI model for face tracking and engagement scoring
     columbia_command = (f"python Columbia_test.py --videoName {segment_name} "
                         f"--videoFolder {str(trailer_dir)} "
                         f"--pretrainModel weight/finetuning_TalkSet.model")
@@ -454,7 +531,7 @@ def process_trailer_segment(trailer_dir: pathlib.Path, original_video_path: path
         print(f"Columbia processing failed for segment {segment_index}: {e}")
         return None
     
-    # Load tracking data
+    # Load face tracking and engagement data
     tracks_path = segment_dir / "pywork" / "tracks.pckl"
     scores_path = segment_dir / "pywork" / "scores.pckl"
     
@@ -468,7 +545,7 @@ def process_trailer_segment(trailer_dir: pathlib.Path, original_video_path: path
     with open(scores_path, "rb") as f:
         scores = pickle.load(f)
     
-    # Create vertical video
+    # Create vertical video with AI-generated camera movements
     vertical_video_path = pyavi_path / "vertical.mp4"
     create_vertical_video(tracks, scores, pyframes_path, pyavi_path, audio_path, vertical_video_path)
     
@@ -480,7 +557,24 @@ def process_trailer_segment(trailer_dir: pathlib.Path, original_video_path: path
 
 def combine_clips_with_narrative_flow(trailer_dir: pathlib.Path, processed_clips: list, s3_key: str):
     """
-    Combine clips with improved transitions for better narrative flow and suspense building.
+    Combines video clips with sophisticated transitions for narrative flow.
+    
+    This function creates a professional trailer by combining multiple clips
+    with smooth crossfades, fade-ins, and fade-outs that build suspense and
+    maintain viewer engagement. It includes fallback mechanisms for complex
+    filter failures.
+    
+    Args:
+        trailer_dir: Directory containing processed clip files
+        processed_clips: List of dictionaries containing clip information
+        s3_key: S3 key prefix for the output trailer file
+    
+    Returns:
+        str: S3 key of the uploaded trailer file
+    
+    Raises:
+        subprocess.CalledProcessError: If video processing fails
+        Exception: If S3 upload fails
     """
     print("Combining clips into trailer with narrative flow...")
     
@@ -497,7 +591,7 @@ def combine_clips_with_narrative_flow(trailer_dir: pathlib.Path, processed_clips
     # Calculate total duration for proper fade timing
     total_duration = sum(clip_info['duration'] for clip_info in processed_clips)
     
-    # Create more sophisticated transitions for narrative flow:
+    # Create sophisticated transitions for narrative flow:
     # - Quick fade-in for opening hook
     # - Smooth crossfades between tension-building moments
     # - Dramatic fade-out for cliffhanger ending
@@ -563,7 +657,23 @@ def combine_clips_with_narrative_flow(trailer_dir: pathlib.Path, processed_clips
 
 def combine_clips_simple(trailer_dir: pathlib.Path, processed_clips: list, s3_key: str):
     """
-    Simple combination of processed clips without any titles or overlays.
+    Combines video clips with simple fade transitions.
+    
+    This function provides a fallback method for combining clips when
+    complex transitions fail. It uses basic fade-in and fade-out effects
+    to create a watchable trailer.
+    
+    Args:
+        trailer_dir: Directory containing processed clip files
+        processed_clips: List of dictionaries containing clip information
+        s3_key: S3 key prefix for the output trailer file
+    
+    Returns:
+        str: S3 key of the uploaded trailer file
+    
+    Raises:
+        subprocess.CalledProcessError: If video processing fails
+        Exception: If S3 upload fails
     """
     print("Combining clips into trailer...")
     
@@ -594,16 +704,35 @@ def combine_clips_simple(trailer_dir: pathlib.Path, processed_clips: list, s3_ke
 
 
 
-# Function to process individual video clips
-# This function handles the complete pipeline for creating a single clip:
-# 1. Extracts the clip segment from the original video
-# 2. Runs Columbia AI model for face tracking and scoring
-# 3. Creates vertical video with AI-generated camera movements
-# 4. Adds subtitles and finalizes the clip
 def process_clip(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_key: str, start_time: float, end_time: float, clip_index: int, transcript_segments: list):
+    """
+    Processes a single video clip through the complete AI pipeline.
+    
+    This function handles the end-to-end processing of a video segment:
+    1. Extracts the clip segment from the original video
+    2. Runs Columbia AI model for face tracking and engagement scoring
+    3. Creates vertical video with AI-generated camera movements
+    4. Adds professional subtitles and uploads to S3
+    
+    Args:
+        base_dir: Base directory for processing operations
+        original_video_path: Path to the source video file
+        s3_key: S3 key prefix for the output clip file
+        start_time: Start time of the clip in seconds
+        end_time: End time of the clip in seconds
+        clip_index: Index of the clip for naming purposes
+        transcript_segments: Word-level transcript data for subtitle generation
+    
+    Returns:
+        None. The processed clip is uploaded to S3.
+    
+    Raises:
+        FileNotFoundError: If required tracking data is missing
+        subprocess.CalledProcessError: If video processing commands fail
+        Exception: If S3 upload fails
+    """
     # Create unique clip name and S3 output path
     clip_name = f"clip_{clip_index}"
-    # s3_key is already the folder path (e.g., "uuid"), not a full file path
     output_s3_key = f"{s3_key}/{clip_name}.mp4"
 
     # Create directory structure for this clip
@@ -645,7 +774,7 @@ def process_clip(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_k
     
     columbia_start_time = time.time()
     subprocess.run(columbia_command, cwd="/asd", shell=True)
-    columbia_end_time  = time.time()
+    columbia_end_time = time.time()
     print(f"Columbia script completed in {columbia_end_time - columbia_start_time:.2f} seconds")
 
     # Step 4: Load the tracking and scoring data generated by Columbia
@@ -680,42 +809,74 @@ def process_clip(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_k
         print(f"[ERROR] S3 upload failed: {e}")
 
 
-# This is our main AI processing service that runs in the cloud
 @app.cls(gpu="L40S", timeout=900, retries=0, scaledown_window=20, secrets=[modal.Secret.from_name("clipstream-ai-secret")], volumes={mount_path: volume})
 class clipstream_ai:
-    # Configuration for our cloud service:
-    # - gpu="L40S": Use a powerful NVIDIA L40S GPU for fast AI processing
-    # - timeout=900: Allow up to 15 minutes for processing (videos can take time)
-    # - retries=0: Don't retry if something goes wrong
-    # - scaledown_window=20: Keep the service running for 20 seconds after last request
-    # - secrets: Access to our stored secrets (like API keys)
-    # - volumes: Use our permanent storage for AI models
+    """
+    Main AI processing service for automated video clip generation.
+    
+    This Modal class provides cloud-based video processing capabilities including:
+    - Speech transcription using WhisperX with word-level timestamps
+    - Content analysis using Google Gemini AI for moment identification
+    - Face tracking and engagement scoring using Columbia AI models
+    - Vertical video generation optimized for social media platforms
+    
+    Configuration:
+        - GPU: NVIDIA L40S for accelerated AI processing
+        - Timeout: 15 minutes for video processing operations
+        - Retries: 0 (no automatic retries on failure)
+        - Scaledown: 20 seconds after last request
+        - Secrets: Access to API keys and credentials
+        - Volumes: Persistent storage for AI models
+    """
     
     @modal.enter()
     def load_model(self):
-        # This runs once when our service starts up
-        # It's like turning on a computer and loading all the programs we need
-        print("Loading models")
+        """
+        Initializes AI models and clients when the service starts.
+        
+        This method runs once when the Modal container starts up and loads
+        all required AI models into memory for efficient processing.
+        
+        Raises:
+            Exception: If model loading fails or API keys are missing
+        """
+        print("Loading AI models...")
         
         # Load WhisperX model for speech transcription
-        # This model can transcribe speech with high accuracy and word-level timestamps
+        # This model provides high-accuracy transcription with word-level timestamps
         self.whisperx_model = whisperx.load_model("large-v2", device="cuda", compute_type="float16")
 
         # Load alignment model for precise word-level timing
-        # This ensures our transcriptions have accurate start/end times for each word
+        # This ensures transcriptions have accurate start/end times for each word
         self.alignment_model, self.metadata = whisperx.load_align_model(language_code="en", device="cuda")
 
-        print("Transcription models loaded...")
+        print("Transcription models loaded successfully")
 
         # Initialize Google Gemini AI client for content analysis
-        # This will be used to identify interesting moments in the transcript
-        print("Creating gemini client...")
+        # This will be used to identify engaging moments in the transcript
+        print("Initializing Gemini AI client...")
         self.gemini_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-        print("Created gemini client...")
+        print("Gemini AI client initialized successfully")
 
-    # Function to transcribe the video using WhisperX
-    # This extracts audio from the video and creates a detailed transcript with word-level timestamps
     def transcribe_video(self, base_dir: pathlib.Path, video_path: pathlib.Path) -> str:
+        """
+        Transcribes video content using WhisperX with word-level timestamps.
+        
+        This method extracts audio from the video and performs high-accuracy
+        speech transcription with precise word-level timing information.
+        The audio is converted to 16kHz mono WAV format for optimal processing.
+        
+        Args:
+            base_dir: Directory for temporary audio files
+            video_path: Path to the video file to transcribe
+        
+        Returns:
+            str: JSON string containing word-level transcript segments with timestamps
+        
+        Raises:
+            subprocess.CalledProcessError: If audio extraction fails
+            Exception: If transcription or alignment fails
+        """
         # Extract audio from video using ffmpeg
         # Convert to 16kHz mono WAV format for optimal transcription
         audio_path = base_dir / "audio.wav"
@@ -733,10 +894,9 @@ class clipstream_ai:
         result = whisperx.align(result["segments"], self.alignment_model, self.metadata, audio, device="cuda", return_char_alignments=False)
 
         duration = time.time() - start_time
-        print("Transcription and alignment took " + str(duration) + "seconds")
+        print(f"Transcription and alignment completed in {duration:.2f} seconds")
 
         # Extract word-level segments with timestamps
-        # This creates a list of words with their start/end times
         segments = []
 
         if "word_segments" in result:
@@ -750,9 +910,23 @@ class clipstream_ai:
         return json.dumps(segments)
 
     
-    # Function to identify interesting moments in the transcript using Gemini AI
-    # This analyzes the transcript to find question-answer pairs and stories suitable for clips
     def identify_moments(self, transcript: dict):
+        """
+        Identifies engaging moments in video transcripts using Google Gemini AI.
+        
+        This method analyzes the transcript to find question-answer pairs and
+        compelling stories suitable for creating video clips. It uses AI to
+        identify natural conversation boundaries and engaging content.
+        
+        Args:
+            transcript: Dictionary containing word-level transcript data
+        
+        Returns:
+            str: JSON string containing identified moments with start/end timestamps
+        
+        Raises:
+            Exception: If Gemini API call fails
+        """
         try:
             response = self.gemini_client.models.generate_content(
                 model="gemini-2.5-flash", 
@@ -784,8 +958,23 @@ class clipstream_ai:
             print(f"[ERROR] Gemini API call failed for clips: {e}")
             return "[]"
     
-    # Function to identify trailer moments - optimized for shorter, impactful segments
     def identify_trailer_moments(self, transcript: dict):
+        """
+        Identifies trailer-optimized moments using Google Gemini AI.
+        
+        This method analyzes transcripts to find moments suitable for creating
+        compelling 60-second trailers. It focuses on narrative structure with
+        hooks, tension-building, climax, and cliffhanger elements.
+        
+        Args:
+            transcript: Dictionary containing word-level transcript data
+        
+        Returns:
+            str: JSON string containing identified trailer moments with timestamps
+        
+        Raises:
+            Exception: If Gemini API call fails or JSON parsing fails
+        """
         try:
             # For very long transcripts (>1000 words), limit to first 30 minutes of content
             # to avoid overwhelming Gemini and reduce processing time
@@ -867,21 +1056,38 @@ class clipstream_ai:
 
     @modal.fastapi_endpoint(method="POST")
     def process_video(self, request: ProcessVideoRequest, token: HTTPAuthorizationCredentials = Depends(auth_scheme)):
-        # This is the main function that processes videos when someone calls our API
-        # It's like a worker that takes a video and does AI magic on it
+        """
+        Main API endpoint for video processing and clip generation.
         
-        # Get the video file path from the request
+        This endpoint handles the complete video processing pipeline including:
+        - Authentication and request validation
+        - Video download (from S3 or YouTube)
+        - Speech transcription and content analysis
+        - AI-powered moment identification
+        - Clip or trailer generation with professional effects
+        
+        Args:
+            request: ProcessVideoRequest containing video processing parameters
+            token: HTTP authorization credentials for API security
+        
+        Returns:
+            dict: Processing status and results
+        
+        Raises:
+            HTTPException: For authentication failures or processing errors
+        """
+        # Extract request parameters
         s3_key = request.s3_key
         youtube_url = request.youtube_url
         cookies_s3_key = request.cookies_s3_key
         generate_trailer = request.generate_trailer
 
-        # Check if the user has permission to use our service
+        # Validate authentication token
         if token.credentials != os.environ["AUTH_TOKEN"]:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                                 detail="Incorrect bearer token", headers={"WWW-Authenticate": "Bearer"})
         
-        # Create a unique folder for this video processing job
+        # Create unique processing directory
         run_id = str(uuid.uuid4())
         base_dir = pathlib.Path("/tmp") / run_id
         base_dir.mkdir(parents=True, exist_ok=True)
@@ -889,14 +1095,14 @@ class clipstream_ai:
         video_path = base_dir / "input.mp4"
         cookies_path = None
         
-        # Determine the S3 key for clips - use original s3_key directory for consistency with frontend
-        # For both YouTube and manual uploads, s3_key is now the proper UUID-based path
+        # Determine S3 key for clips - use original s3_key directory for consistency
         s3_key_dir = os.path.dirname(s3_key)
         clips_s3_key = s3_key_dir
         print(f"Using clips_s3_key: {clips_s3_key} (from s3_key: {s3_key})")
         
+        # Handle video source (YouTube or S3)
         if youtube_url and cookies_s3_key:
-            # Download cookies file from S3 to a temp file
+            # Download cookies file from S3 for YouTube authentication
             s3_client = boto3.client("s3")
             
             # Verify cookies file exists before attempting download
@@ -907,6 +1113,7 @@ class clipstream_ai:
                 print(f"[ERROR] Cookies file not found in S3: {cookies_s3_key} - {e}")
                 raise HTTPException(status_code=400, detail="Cookies file missing. Please upload a fresh cookies.txt file.")
             
+            # Download cookies to temporary file
             with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
                 try:
                     s3_client.download_fileobj("clipstream-ai", cookies_s3_key, tmp)
@@ -916,6 +1123,7 @@ class clipstream_ai:
                     print(f"[ERROR] Failed to download cookies file: {e}")
                     raise HTTPException(status_code=400, detail="Failed to access cookies file. Please upload a fresh cookies.txt file.")
                     
+            # Download YouTube video using yt-dlp
             try:
                 ydl_opts = {
                     'outtmpl': str(video_path),
@@ -923,7 +1131,7 @@ class clipstream_ai:
                     'merge_output_format': 'mp4',
                     'quiet': True,
                     'noplaylist': True,
-                    'max_filesize': 600 * 1024 * 1024,
+                    'max_filesize': 600 * 1024 * 1024,  # 600MB limit
                 }
                 if cookies_path:
                     ydl_opts['cookiefile'] = cookies_path
@@ -934,7 +1142,7 @@ class clipstream_ai:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(youtube_url, download=True)
                     duration = info.get('duration', 0)
-                    if duration > 60 * 60:
+                    if duration > 60 * 60:  # 1 hour limit
                         raise Exception("Video too long (max 1 hour)")
                     print(f"[DEBUG] Successfully downloaded YouTube video: {youtube_url}")
             except Exception as e:
@@ -942,14 +1150,14 @@ class clipstream_ai:
                 shutil.rmtree(base_dir, ignore_errors=True)
                 raise HTTPException(status_code=400, detail=f"YouTube download failed: {e}")
             finally:
+                # Clean up temporary cookies file
                 if cookies_path:
                     try:
                         os.remove(cookies_path)
                         print(f"[DEBUG] Deleted temp cookies file: {cookies_path}")
                     except Exception:
                         pass
-                # Note: Cookies file deletion from S3 may fail due to permissions
-                # This is expected and doesn't affect functionality
+                # Clean up S3 cookies file (may fail due to permissions)
                 if cookies_s3_key:
                     try:
                         s3_client.delete_object(Bucket="clipstream-ai", Key=cookies_s3_key)
@@ -957,17 +1165,19 @@ class clipstream_ai:
                     except Exception as e:
                         print(f"[INFO] Could not delete cookies file from S3 (expected if no delete permissions): {e}")
         elif youtube_url:
-            # YouTube URL provided but no cookies - this should not happen with proper frontend validation
+            # YouTube URL provided but no cookies - validation error
             print("[ERROR] YouTube URL provided but no cookies file")
             raise HTTPException(status_code=400, detail="Cookies file is required for YouTube downloads")
         else:
+            # Download video from S3
             s3_client = boto3.client("s3")
             s3_client.download_file("clipstream-ai", s3_key, str(video_path))
 
+        # Perform speech transcription and content analysis
         transcript_segments_json = self.transcribe_video(base_dir, video_path)
         transcript_segments = json.loads(transcript_segments_json)
 
-        # Use different Gemini prompts for clips vs trailers
+        # Identify engaging moments using appropriate AI prompt
         print(f"generate_trailer flag: {generate_trailer}")
         if generate_trailer:
             print("Using trailer-optimized prompt for moment identification...")
@@ -977,6 +1187,8 @@ class clipstream_ai:
             identified_moments_raw = self.identify_moments(transcript_segments)
 
         print(f"Raw identified_moments_raw: {identified_moments_raw}")
+        
+        # Clean and parse JSON response from Gemini
         cleaned_json_string = identified_moments_raw.strip()
         if cleaned_json_string.startswith("```json"):
             cleaned_json_string = cleaned_json_string[len("```json"):].strip()
@@ -985,6 +1197,7 @@ class clipstream_ai:
 
         print(f"Cleaned JSON string: {cleaned_json_string}")
         
+        # Parse and validate moment data
         try:
             clip_moments = json.loads(cleaned_json_string)
             print(f"Successfully parsed JSON: {clip_moments}")
@@ -992,11 +1205,12 @@ class clipstream_ai:
             print(f"[ERROR] Failed to parse Gemini output: {e}")
             print(f"JSON string that failed: '{cleaned_json_string}'")
             clip_moments = []
+        
         if not isinstance(clip_moments, list):
             print("[ERROR] identified moments is not a list")
             clip_moments = []
 
-        # Step 3: Process moments based on generation type
+        # Process moments based on generation type
         processing_success = False
         
         if generate_trailer:
@@ -1031,14 +1245,13 @@ class clipstream_ai:
                 print(f"[ERROR] Trailer generation failed: {e}")
                 raise Exception(f"Trailer generation failed: {e}")
         else:
-            # Create individual clips (existing behavior)
+            # Create individual clips
             print("Generating individual clips...")
             clips_created = 0
             # Limit to first 3 clips to avoid overwhelming the system
             for index, moment in enumerate(clip_moments[:3]):
                 if "start" in moment and "end" in moment:
                     try:
-                        # Pass the full prefix for the clip
                         process_clip(base_dir, video_path, clips_s3_key, moment["start"], moment["end"], index, transcript_segments)
                         clips_created += 1
                     except Exception as e:
@@ -1050,7 +1263,7 @@ class clipstream_ai:
                 print("[ERROR] No moments identified by AI for clip generation")
                 raise Exception("No suitable moments found in video")
         
-        # Mark as processed if successful and deduct credits
+        # Validate processing success
         if processing_success:
             print(f"Processing completed successfully for {s3_key}")
         else:
@@ -1061,38 +1274,43 @@ class clipstream_ai:
             shutil.rmtree(base_dir, ignore_errors=True)
 
 
-# This function lets us test our API from our local computer
 @app.local_entrypoint()
 def main():
-    # Import the requests library for making HTTP calls
+    """
+    Local entry point for testing the video processing API.
+    
+    This function provides a simple way to test the video processing
+    service locally by making HTTP requests to the deployed Modal endpoint.
+    It's useful for development and debugging purposes.
+    
+    Usage:
+        Run this function to test video processing with a sample video file.
+    """
     import requests
 
-    # Connect to our cloud service
+    # Initialize the cloud service connection
     clipstreamai = clipstream_ai()
 
     # Get the web address where our API is running
     url = clipstreamai.process_video.web_url  
 
-    # Prepare the test data - this is like filling out a form
+    # Prepare test data for video processing
     payload = {
-        "s3_key": "test2/Blocks30mins.mp4"  # The video file we want to process
+        "s3_key": "test2/Blocks30mins.mp4"  # Test video file to process
     }
 
-    # Set up the request headers (like putting a stamp on an envelope)
+    # Set up request headers for API authentication
     headers = {
-        "Content-Type": "application/json",  # Tell the server we're sending JSON data
-        "Authorization": "Bearer 123123"     # Our test password/token
+        "Content-Type": "application/json",
+        "Authorization": "Bearer 123123"  # Test authentication token
     }
 
-    # Send the request to our cloud service
-    # This is like sending a letter asking "please process this video"
+    # Send processing request to the cloud service
     response = requests.post(url, json=payload, headers=headers)
     
-    # Check if everything worked (if not, this will show us the error)
+    # Validate response status
     response.raise_for_status()
     
-    # Get the response from our service
+    # Extract and display results
     result = response.json()
-    
-    # Show us what the service returned
     print(result)

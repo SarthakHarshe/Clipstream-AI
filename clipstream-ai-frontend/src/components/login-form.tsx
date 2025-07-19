@@ -1,11 +1,28 @@
-// login-form.tsx
-// ---------------
-// Login form component for Clipstream AI. Handles user input, validation, and submission for user authentication.
-// Integrates with NextAuth for credential-based login and provides user feedback on errors.
+/**
+ * Login Form Component
+ *
+ * Handles user authentication with email and password credentials.
+ * Integrates with NextAuth for secure credential-based login and provides
+ * comprehensive user feedback on validation errors and authentication status.
+ *
+ * Features:
+ * - Real-time form validation with Zod schemas
+ * - Visual validation indicators
+ * - Password visibility toggle
+ * - Loading states and error handling
+ * - Responsive design with glass morphism
+ * - Integration with NextAuth credentials provider
+ *
+ * @author ClipStream AI Team
+ * @version 1.0.0
+ */
 
 "use client";
 
+// Utility imports
 import { cn } from "~/lib/utils";
+
+// UI components
 import {
   Card,
   CardContent,
@@ -17,26 +34,50 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 
+// Form handling
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+
+// React hooks
 import { useState, useEffect } from "react";
+
+// Navigation
 import Link from "next/link";
-import { loginSchema, type LoginFormValues } from "~/schemas/auth";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+
+// Authentication
+import { signIn } from "next-auth/react";
+
+// Validation schemas
+import { loginSchema, type LoginFormValues } from "~/schemas/auth";
+
+// Animation
 import { motion } from "framer-motion";
+
+// Icons
 import { Eye, EyeOff, Check, X, AlertCircle } from "lucide-react";
 
-// Main login form component
+/**
+ * Login Form Component
+ *
+ * Provides a comprehensive login interface with real-time validation,
+ * secure authentication, and user-friendly error handling.
+ *
+ * @param className - Additional CSS classes for styling
+ * @param props - Additional HTML div properties
+ * @returns JSX.Element - The complete login form interface
+ */
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  // State for error messages and submission status
+  // Form state management
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
+
+  // Navigation hook
   const router = useRouter();
 
   // React Hook Form setup with Zod validation
@@ -53,15 +94,26 @@ export function LoginForm({
   // Watch email field for validation indicator
   const watchedEmail = watch("email", "");
 
+  // Update email state when watched value changes
   useEffect(() => {
     setEmail(watchedEmail || "");
   }, [watchedEmail]);
 
-  // Email validation helper
+  // Email validation helper for visual feedback
   const isEmailValid =
     email && !errors.email && email.includes("@") && email.includes(".");
 
-  // Form submission handler for login
+  /**
+   * Form submission handler for login authentication
+   *
+   * Handles the complete login workflow including:
+   * 1. Form validation
+   * 2. NextAuth credential authentication
+   * 3. Error handling and user feedback
+   * 4. Successful login redirection
+   *
+   * @param data - Validated form data from Zod schema
+   */
   const onSubmit = async (data: LoginFormValues) => {
     try {
       setIsSubmitting(true);
@@ -75,7 +127,7 @@ export function LoginForm({
       });
 
       if (result?.error) {
-        // Handle specific error types
+        // Handle specific error types with user-friendly messages
         if (result.error === "CredentialsSignin") {
           setError(
             "Invalid email or password. Please check your credentials and try again.",
@@ -97,7 +149,9 @@ export function LoginForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
+      {/* Login Card Container */}
       <Card className="glass-card border-white/10 bg-white/5">
+        {/* Card Header */}
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-white">
             Welcome back
@@ -106,9 +160,11 @@ export function LoginForm({
             Enter your credentials to access your account
           </CardDescription>
         </CardHeader>
+
+        {/* Card Content */}
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Email Field */}
+            {/* Email Input Field */}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium text-white">
                 Email
@@ -138,6 +194,7 @@ export function LoginForm({
                   )}
                 </div>
               </div>
+              {/* Email error message */}
               {errors.email && (
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
@@ -150,7 +207,7 @@ export function LoginForm({
               )}
             </div>
 
-            {/* Password Field */}
+            {/* Password Input Field */}
             <div className="space-y-2">
               <Label
                 htmlFor="password"
@@ -169,6 +226,7 @@ export function LoginForm({
                   )}
                   {...register("password")}
                 />
+                {/* Password visibility toggle */}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -181,6 +239,7 @@ export function LoginForm({
                   )}
                 </button>
               </div>
+              {/* Password error message */}
               {errors.password && (
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
@@ -213,7 +272,7 @@ export function LoginForm({
               )}
             </Button>
 
-            {/* General Error */}
+            {/* General Error Display */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}

@@ -1,26 +1,75 @@
-// auth.ts
-// ------
-// Server actions for user authentication and registration in Clipstream AI.
-// Handles user signup, password hashing, and Stripe customer creation for billing.
+/**
+ * Authentication Server Actions
+ *
+ * Server-side actions for user authentication and registration in ClipStream AI.
+ * Handles user signup, password hashing, and Stripe customer creation for billing.
+ *
+ * This module provides secure server-side authentication functions that can be
+ * called from client components using React Server Actions.
+ *
+ * Features:
+ * - User registration with email/password validation
+ * - Secure password hashing
+ * - Stripe customer creation for billing
+ * - Comprehensive error handling
+ * - Email normalization and duplicate prevention
+ *
+ * @author ClipStream AI Team
+ * @version 1.0.0
+ */
 
 "use server";
 
+// Schema and type imports
 import { signupSchema, type SignupFormValues } from "~/schemas/auth";
+
+// Database and external service imports
 import { db } from "~/server/db";
 import Stripe from "stripe";
+
+// Utility imports
 import { hashPassword } from "~/lib/auth";
 import { env } from "~/env";
 
-// Result type for signup operations
-// Indicates success or failure and provides error messages if any
+/**
+ * SignUp Result Type
+ *
+ * Defines the structure of the result returned by signup operations.
+ * Indicates success or failure and provides error messages if any.
+ */
 type SignUpResult = {
   success: boolean;
   error?: string;
 };
 
-// Main signup function that handles user registration and Stripe integration
+/**
+ * User Registration Function
+ *
+ * Handles the complete user registration process including:
+ * 1. Input validation using Zod schema
+ * 2. Email normalization and duplicate checking
+ * 3. Secure password hashing
+ * 4. Stripe customer creation for billing
+ * 5. Database user creation
+ *
+ * This function ensures data integrity and provides comprehensive
+ * error handling for various failure scenarios.
+ *
+ * @param data - User registration data (email, password)
+ * @returns Promise<SignUpResult> - Registration result with success/error status
+ *
+ * @example
+ * ```typescript
+ * const result = await signUp({ email: "user@example.com", password: "secure123" });
+ * if (result.success) {
+ *   // User created successfully
+ * } else {
+ *   // Handle error: result.error
+ * }
+ * ```
+ */
 export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
-  // Validate input data using Zod schema
+  // Step 1: Validate input data using Zod schema
   const validationResult = signupSchema.safeParse(data);
   if (!validationResult.success) {
     return {
@@ -31,11 +80,11 @@ export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
 
   const { email, password } = validationResult.data;
 
-  // Normalize email to lowercase for consistency
+  // Step 2: Normalize email to lowercase for consistency
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    // Check if user already exists in the database (case-insensitive)
+    // Step 3: Check for existing user (case-insensitive)
     const existingUser = await db.user.findUnique({
       where: { email: normalizedEmail },
     });
@@ -47,17 +96,16 @@ export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
       };
     }
 
-    // Hash the password for secure storage
+    // Step 4: Hash password for secure storage
     const hashedPassword = await hashPassword(password);
 
-    // Create Stripe customer for payment processing
-    // Uses the Stripe secret key from environment variables
+    // Step 5: Create Stripe customer for payment processing
     const stripe = new Stripe(env.STRIPE_SECRET_KEY);
     const stripeCustomer = await stripe.customers.create({
       email: normalizedEmail,
     });
 
-    // Create new user in the database with Stripe customer ID
+    // Step 6: Create new user in database with Stripe customer ID
     await db.user.create({
       data: {
         email: normalizedEmail,
@@ -68,11 +116,13 @@ export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
 
     return { success: true };
   } catch (error: unknown) {
-    // Log the actual error for debugging
+    // Log the actual error for debugging purposes
     console.error("Signup error:", error);
 
-    // Check if it's a Prisma unique constraint error
+    // Step 7: Handle specific error types with user-friendly messages
     const errorString = String(error);
+
+    // Handle Prisma unique constraint violations
     if (errorString.includes("P2002") && errorString.includes("email")) {
       return {
         success: false,
@@ -80,7 +130,7 @@ export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
       };
     }
 
-    // Check if it's a Stripe error
+    // Handle Stripe-related errors
     if (errorString.includes("Stripe")) {
       return {
         success: false,

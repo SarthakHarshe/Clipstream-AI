@@ -1,15 +1,49 @@
-// dashboard-client.tsx
-// -------------------
-// Client-side dashboard component for Clipstream AI. Provides file upload interface,
-// displays user's uploaded files and clips, and handles the upload workflow.
+/**
+ * Dashboard Client Component
+ *
+ * Main client-side dashboard interface for ClipStream AI that provides users with
+ * comprehensive file management, upload capabilities, and clip viewing functionality.
+ *
+ * Features:
+ * - File upload interface with drag-and-drop support
+ * - YouTube URL processing with cookies authentication
+ * - Real-time file status monitoring
+ * - Clip generation and viewing
+ * - Auto-refresh for processing files
+ * - Responsive design with animations
+ *
+ * This component handles the complete user workflow from file upload to
+ * clip generation and viewing, with support for both direct file uploads
+ * and YouTube video processing.
+ *
+ * @author ClipStream AI Team
+ * @version 1.0.0
+ */
 
 "use client";
 
+// TypeScript and Prisma imports
 import type { Clip } from "@prisma/client";
+import type { ChangeEvent } from "react";
+
+// Next.js imports
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+
+// React hooks
+import { useState, useEffect } from "react";
+
+// Form handling
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+// Validation schemas
+import z from "zod";
+
+// UI components
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import Dropzone, { type DropzoneState } from "shadcn-dropzone";
 import {
   Card,
   CardContent,
@@ -17,19 +51,6 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
-import {
-  Loader2,
-  UploadCloud,
-  Upload,
-  Youtube,
-  Film,
-  Mic,
-  Download,
-} from "lucide-react";
-import { useState, useEffect } from "react";
-import { generateUploadUrl } from "~/actions/s3";
-import { toast } from "sonner";
-import { processVideo } from "~/actions/generation";
 import {
   Table,
   TableBody,
@@ -39,17 +60,40 @@ import {
   TableRow,
 } from "./ui/table";
 
-import { useRouter } from "next/navigation";
-import { usePathname } from "next/navigation";
-import { ClipDisplay } from "./clip-display";
-import { useForm } from "react-hook-form";
-import z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import type { ChangeEvent } from "react";
+// Third-party components
+import Dropzone, { type DropzoneState } from "shadcn-dropzone";
+
+// Icons
+import {
+  Loader2,
+  UploadCloud,
+  Upload,
+  Youtube,
+  Film,
+  Mic,
+  Download,
+} from "lucide-react";
+
+// Animation
 import { motion } from "framer-motion";
+
+// Custom components
+import { ClipDisplay } from "./clip-display";
 import CountUp from "./CountUp";
 
-// Add YouTube URL validation schema
+// Server actions
+import { generateUploadUrl } from "~/actions/s3";
+import { processVideo } from "~/actions/generation";
+
+// Utilities
+import { toast } from "sonner";
+
+/**
+ * YouTube URL Validation Schema
+ *
+ * Validates that the provided URL is a valid YouTube URL format.
+ * Supports both youtube.com and youtu.be domains.
+ */
 const youtubeUrlSchema = z.object({
   url: z
     .string()
@@ -62,51 +106,95 @@ const youtubeUrlSchema = z.object({
     ),
 });
 
-// Add the client-only submitYoutubeUrl function here:
+/**
+ * Submit YouTube URL for Processing
+ *
+ * Sends a YouTube URL to the backend API for processing. This function
+ * handles the HTTP request and error handling for YouTube video submissions.
+ *
+ * @param formData - FormData containing the YouTube URL and cookies file
+ * @returns Promise<unknown> - API response data
+ * @throws Error - If the API request fails
+ */
 async function submitYoutubeUrl(formData: FormData): Promise<unknown> {
   const response = await fetch("/api/youtube-upload", {
     method: "POST",
     body: formData,
   });
+
   if (!response.ok) {
     const error = await response.text();
     throw new Error(error || "Failed to submit YouTube URL");
   }
+
   return await response.json();
 }
 
-// Main dashboard client component
-export function DashboardClient({
-  uploadedFiles,
-  clips,
-}: {
+/**
+ * Dashboard Client Component Props
+ */
+interface DashboardClientProps {
   uploadedFiles: {
     id: string;
     s3Key: string;
     fileName: string;
     status: string;
-    source: string; // Add source field for filtering
+    source: string; // Distinguishes between YouTube and direct uploads
     clipsCount: number;
     createdAt: Date;
   }[];
   clips: Clip[];
-}) {
-  // State for file upload management
+}
+
+/**
+ * Dashboard Client Component
+ *
+ * Main interactive dashboard that provides file upload, processing,
+ * and clip management functionality. Handles both direct file uploads
+ * and YouTube URL processing with comprehensive error handling and
+ * real-time status updates.
+ *
+ * @param uploadedFiles - Array of user's uploaded files with metadata
+ * @param clips - Array of generated clips from uploaded files
+ * @returns JSX.Element - The complete dashboard interface
+ */
+export function DashboardClient({
+  uploadedFiles,
+  clips,
+}: DashboardClientProps) {
+  // File upload state management
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [generateTrailer, setGenerateTrailer] = useState(false);
 
+  // Navigation hooks
   const router = useRouter();
   const pathname = usePathname();
 
-  // Prevent hydration mismatches
+  // YouTube upload state management
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
+  const [cookiesFile, setCookiesFile] = useState<File | null>(null);
+  const [ytGenerateTrailer, setYtGenerateTrailer] = useState(false);
+
+  // YouTube form handling with validation
+  const {
+    register: registerYt,
+    handleSubmit: handleSubmitYt,
+    formState: { errors: ytErrors },
+    reset: resetYt,
+  } = useForm<{ url: string }>({
+    resolver: zodResolver(youtubeUrlSchema),
+  });
+
+  // Prevent hydration mismatches by ensuring client-side rendering
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Auto-refresh when there are processing files
+  // Auto-refresh mechanism for processing files
   useEffect(() => {
     const hasProcessingFiles = uploadedFiles.some(
       (file) => file.status === "processing",
@@ -122,27 +210,22 @@ export function DashboardClient({
     }
   }, [uploadedFiles, router]);
 
-  // Safe date formatting to prevent hydration issues
+  /**
+   * Format date safely to prevent hydration issues
+   *
+   * @param date - Date to format
+   * @returns string - Formatted date string or empty string if not mounted
+   */
   const formatDate = (date: Date) => {
     if (!isMounted) return "";
     return new Date(date).toLocaleDateString();
   };
 
-  // State for YouTube URL upload
-  const [ytLoading, setYtLoading] = useState(false);
-  const [ytError, setYtError] = useState<string | null>(null);
-  const [cookiesFile, setCookiesFile] = useState<File | null>(null);
-  const [ytGenerateTrailer, setYtGenerateTrailer] = useState(false);
-  const {
-    register: registerYt,
-    handleSubmit: handleSubmitYt,
-    formState: { errors: ytErrors },
-    reset: resetYt,
-  } = useForm<{ url: string }>({
-    resolver: zodResolver(youtubeUrlSchema),
-  });
-
-  // Handler for cookies file input
+  /**
+   * Handle cookies file selection for YouTube uploads
+   *
+   * @param e - File input change event
+   */
   const handleCookiesFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     let file: File | null = null;
     if (e.target.files && e.target.files.length > 0) {
@@ -151,19 +234,33 @@ export function DashboardClient({
     setCookiesFile(file);
   };
 
-  // Handle manual refresh of dashboard data
+  /**
+   * Manually refresh dashboard data
+   */
   const handleRefresh = async () => {
     setRefreshing(true);
     router.refresh();
     setTimeout(() => setRefreshing(false), 600);
   };
 
-  // Handle files dropped or selected in the dropzone
+  /**
+   * Handle files dropped or selected in the dropzone
+   *
+   * @param acceptedFiles - Array of accepted file objects
+   */
   const handleDrop = (acceptedFiles: File[]) => {
     setFiles(acceptedFiles);
   };
 
-  // Handle the complete upload and processing workflow
+  /**
+   * Handle the complete file upload and processing workflow
+   *
+   * This function orchestrates the entire upload process:
+   * 1. Generate signed S3 upload URL
+   * 2. Upload file directly to S3
+   * 3. Trigger background video processing
+   * 4. Handle success/error states
+   */
   const handleUpload = async () => {
     if (files.length === 0) return;
 
@@ -215,13 +312,21 @@ export function DashboardClient({
     }
   };
 
-  // Handler for YouTube URL submission
+  /**
+   * Handle YouTube URL submission and processing
+   *
+   * Validates the YouTube URL and cookies file, then submits the request
+   * to the backend for processing. Includes comprehensive error handling
+   * and user feedback for common issues.
+   *
+   * @param data - Form data containing the YouTube URL
+   */
   const handleYtSubmit = async (data: { url: string }) => {
     setYtLoading(true);
     setYtError(null);
 
     try {
-      // Enforce cookies requirement
+      // Validate cookies file requirement
       if (!cookiesFile) {
         setYtError(
           "Cookies file is required for YouTube downloads. Please upload your cookies.txt file before proceeding.",
@@ -230,7 +335,7 @@ export function DashboardClient({
         return;
       }
 
-      // Validate cookies file
+      // Validate cookies file format
       if (!cookiesFile.name.endsWith(".txt")) {
         setYtError(
           "Invalid file type. Please upload a .txt file containing your YouTube cookies.",
@@ -239,7 +344,7 @@ export function DashboardClient({
         return;
       }
 
-      // Check file size (should be reasonable for cookies)
+      // Validate cookies file size (reasonable limits for cookies.txt)
       if (cookiesFile.size > 1024 * 1024) {
         // 1MB limit
         setYtError(
@@ -258,24 +363,28 @@ export function DashboardClient({
         return;
       }
 
-      // Prepare FormData for backend
+      // Prepare FormData for backend submission
       const formData = new FormData();
       formData.append("url", data.url);
       formData.append("cookies", cookiesFile);
       formData.append("generateTrailer", ytGenerateTrailer.toString());
 
+      // Submit to backend API
       await submitYoutubeUrl(formData);
 
+      // Show success notification
       toast.success("YouTube video submitted successfully", {
         description:
           "Your YouTube video is being downloaded and processed. Check the status below.",
         duration: 5000,
       });
 
+      // Reset form and refresh dashboard
       resetYt();
       setCookiesFile(null);
       router.refresh();
     } catch (error: unknown) {
+      // Handle and display errors with helpful guidance
       let message = "Failed to process YouTube video";
       if (error instanceof Error) {
         message = error.message;
@@ -299,7 +408,7 @@ export function DashboardClient({
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col space-y-6 px-4 py-8">
-      {/* Dashboard Navigation */}
+      {/* Dashboard Navigation - Glass morphism tabs */}
       <motion.div
         className="mt-16 mb-6 flex justify-center"
         initial={{ opacity: 0, y: -10 }}
@@ -334,7 +443,7 @@ export function DashboardClient({
         </div>
       </motion.div>
 
-      {/* Dashboard Header */}
+      {/* Dashboard Header - Welcome section with animations */}
       <motion.div
         className="mb-12 space-y-4 text-center"
         initial={{ opacity: 0, y: 20 }}
@@ -363,8 +472,9 @@ export function DashboardClient({
         </motion.p>
       </motion.div>
 
-      {/* Main Content Tabs */}
+      {/* Main Content Tabs - Upload, YouTube, and Clips sections */}
       <Tabs defaultValue="upload" className="mx-auto w-full max-w-4xl">
+        {/* Tab Navigation */}
         <motion.div
           className="mb-8 flex justify-center"
           initial={{ opacity: 0, y: 10 }}
@@ -396,7 +506,7 @@ export function DashboardClient({
           </TabsList>
         </motion.div>
 
-        {/* Upload Tab */}
+        {/* Upload Tab - Direct file upload interface */}
         <TabsContent value="upload" className="space-y-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -406,6 +516,7 @@ export function DashboardClient({
           >
             <div className="gradient-border-card w-full">
               <Card className="glass-card card-content w-full border-white/10 bg-white/5">
+                {/* Upload Card Header */}
                 <CardHeader className="space-y-4 pb-6 text-center">
                   <motion.div
                     className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-blue-600"
@@ -425,14 +536,16 @@ export function DashboardClient({
                     Drop your video file here and watch AI create amazing clips
                   </CardDescription>
                 </CardHeader>
+
+                {/* Upload Card Content */}
                 <CardContent className="space-y-8 pb-8">
-                  {/* Enhanced Upload Zone */}
+                  {/* File Dropzone */}
                   <div className="flex justify-center">
                     <div className="mb-4 mb-8 w-full max-w-lg">
                       <Dropzone
                         onDrop={handleDrop}
                         accept={{ "video/mp4": [".mp4"] }}
-                        maxSize={500 * 1024 * 1024}
+                        maxSize={500 * 1024 * 1024} // 500MB limit
                         disabled={uploading}
                         maxFiles={1}
                         noClick={false}

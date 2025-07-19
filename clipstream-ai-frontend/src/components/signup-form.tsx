@@ -1,11 +1,29 @@
-// signup-form.tsx
-// ---------------
-// Signup form component for Clipstream AI. Handles user input, validation, and submission for account creation.
-// Integrates with server actions for backend processing and automatically signs in users after successful registration.
+/**
+ * Signup Form Component
+ *
+ * Handles user registration with email and password validation.
+ * Integrates with server actions for backend processing and automatically
+ * signs in users after successful registration.
+ *
+ * Features:
+ * - Real-time form validation with Zod schemas
+ * - Advanced password strength analysis
+ * - Visual password strength indicators
+ * - Password visibility toggle
+ * - Loading states and error handling
+ * - Automatic login after successful registration
+ * - Responsive design with glass morphism
+ *
+ * @author ClipStream AI Team
+ * @version 1.0.0
+ */
 
 "use client";
 
+// Utility imports
 import { cn } from "~/lib/utils";
+
+// UI components
 import {
   Card,
   CardContent,
@@ -17,32 +35,59 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 
+// Form handling
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+
+// React hooks
 import { useState, useEffect } from "react";
+
+// Navigation
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+// Validation schemas and utilities
 import {
   signupSchema,
   type SignupFormValues,
   getPasswordStrength,
 } from "~/schemas/auth";
+
+// Server actions
 import { signUp } from "~/actions/auth";
+
+// Authentication
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+
+// Animation
 import { motion } from "framer-motion";
+
+// Icons
 import { Eye, EyeOff, Check, X, AlertCircle } from "lucide-react";
 
-// Main signup form component
+/**
+ * Signup Form Component
+ *
+ * Provides a comprehensive registration interface with advanced password
+ * strength analysis, real-time validation, and automatic login after
+ * successful account creation.
+ *
+ * @param className - Additional CSS classes for styling
+ * @param props - Additional HTML div properties
+ * @returns JSX.Element - The complete signup form interface
+ */
 export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  // State for error messages and submission status
+  // Form state management
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
+
+  // Navigation hook
   const router = useRouter();
 
   // React Hook Form setup with Zod validation
@@ -56,29 +101,41 @@ export function SignupForm({
     mode: "onChange", // Enable real-time validation
   });
 
-  // Watch password field for strength indicator
+  // Watch form fields for validation indicators
   const watchedPassword = watch("password", "");
   const watchedEmail = watch("email", "");
 
+  // Update state when watched values change
   useEffect(() => {
     setPassword(watchedPassword || "");
     setEmail(watchedEmail || "");
   }, [watchedPassword, watchedEmail]);
 
-  // Get password strength info
+  // Get password strength analysis
   const passwordStrength = getPasswordStrength(password);
 
-  // Email validation helper
+  // Email validation helper for visual feedback
   const isEmailValid =
     email && !errors.email && email.includes("@") && email.includes(".");
 
-  // Form submission handler with server action integration
+  /**
+   * Form submission handler with server action integration
+   *
+   * Handles the complete registration workflow including:
+   * 1. Form validation
+   * 2. Server-side account creation
+   * 3. Automatic login after successful registration
+   * 4. Error handling and user feedback
+   * 5. Successful registration redirection
+   *
+   * @param data - Validated form data from Zod schema
+   */
   const onSubmit = async (data: SignupFormValues) => {
     try {
       setIsSubmitting(true);
       setError(null);
 
-      // Call the signup server action
+      // Step 1: Call the signup server action
       const result = await signUp(data);
 
       if (!result.success) {
@@ -86,7 +143,7 @@ export function SignupForm({
         return;
       }
 
-      // Auto-login after successful signup
+      // Step 2: Auto-login after successful signup
       const signInResult = await signIn("credentials", {
         email: data.email,
         password: data.password,
@@ -98,7 +155,7 @@ export function SignupForm({
         return;
       }
 
-      // Redirect to dashboard on success
+      // Step 3: Redirect to dashboard on success
       router.push("/dashboard");
     } catch {
       setError("An unexpected error occurred");
@@ -109,7 +166,9 @@ export function SignupForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
+      {/* Signup Card Container */}
       <Card className="glass-card border-white/10 bg-white/5">
+        {/* Card Header */}
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-white">
             Create account
@@ -118,9 +177,11 @@ export function SignupForm({
             Enter your email and create a strong password to get started
           </CardDescription>
         </CardHeader>
+
+        {/* Card Content */}
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Email Field */}
+            {/* Email Input Field */}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium text-white">
                 Email
@@ -150,6 +211,7 @@ export function SignupForm({
                   )}
                 </div>
               </div>
+              {/* Email error message */}
               {errors.email && (
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
@@ -162,7 +224,7 @@ export function SignupForm({
               )}
             </div>
 
-            {/* Password Field */}
+            {/* Password Input Field */}
             <div className="space-y-2">
               <Label
                 htmlFor="password"
@@ -185,6 +247,7 @@ export function SignupForm({
                   )}
                   {...register("password")}
                 />
+                {/* Password visibility toggle */}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -243,6 +306,7 @@ export function SignupForm({
 
                   {/* Requirements List */}
                   <div className="space-y-1">
+                    {/* Password suggestions for improvement */}
                     {passwordStrength.suggestions.length > 0 && (
                       <div className="space-y-1">
                         {passwordStrength.suggestions.map(
@@ -262,7 +326,7 @@ export function SignupForm({
                       </div>
                     )}
 
-                    {/* Success indicators */}
+                    {/* Success indicators for met requirements */}
                     {password.length >= 8 && (
                       <motion.div
                         initial={{ opacity: 0, x: -10 }}
@@ -317,7 +381,7 @@ export function SignupForm({
                 </motion.div>
               )}
 
-              {/* Password Errors */}
+              {/* Password error message */}
               {errors.password && (
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
@@ -350,7 +414,7 @@ export function SignupForm({
               )}
             </Button>
 
-            {/* General Error */}
+            {/* General Error Display */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
