@@ -788,13 +788,6 @@ class clipstream_ai:
                 print(f"[DEBUG] Cookies file found in S3: {cookies_s3_key}")
             except Exception as e:
                 print(f"[ERROR] Cookies file not found in S3: {cookies_s3_key} - {e}")
-                # Update status to failed with specific error
-                try:
-                    import requests
-                    requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
-                                json={"s3_key": s3_key, "status": "failed", "error": "Cookies file missing. Please upload a fresh cookies.txt file."}, timeout=10)
-                except:
-                    pass
                 raise HTTPException(status_code=400, detail="Cookies file missing. Please upload a fresh cookies.txt file.")
             
             with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
@@ -804,13 +797,6 @@ class clipstream_ai:
                     print(f"[DEBUG] Successfully downloaded cookies to: {cookies_path}")
                 except Exception as e:
                     print(f"[ERROR] Failed to download cookies file: {e}")
-                    # Update status to failed with specific error
-                    try:
-                        import requests
-                        requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
-                                    json={"s3_key": s3_key, "status": "failed", "error": "Failed to access cookies file. Please upload a fresh cookies.txt file."}, timeout=10)
-                    except:
-                        pass
                     raise HTTPException(status_code=400, detail="Failed to access cookies file. Please upload a fresh cookies.txt file.")
                     
             try:
@@ -837,13 +823,6 @@ class clipstream_ai:
             except Exception as e:
                 print(f"[ERROR] YouTube download failed: {e}")
                 shutil.rmtree(base_dir, ignore_errors=True)
-                # Update status to failed with specific error
-                try:
-                    import requests
-                    requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
-                                json={"s3_key": s3_key, "status": "failed", "error": f"YouTube download failed: {str(e)}. Please ensure your cookies are fresh and try again."}, timeout=10)
-                except:
-                    pass
                 raise HTTPException(status_code=400, detail=f"YouTube download failed: {e}")
             finally:
                 if cookies_path:
@@ -863,12 +842,6 @@ class clipstream_ai:
         elif youtube_url:
             # YouTube URL provided but no cookies - this should not happen with proper frontend validation
             print("[ERROR] YouTube URL provided but no cookies file")
-            try:
-                import requests
-                requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
-                            json={"s3_key": s3_key, "status": "failed", "error": "Cookies file is required for YouTube downloads. Please upload your cookies.txt file."}, timeout=10)
-            except:
-                pass
             raise HTTPException(status_code=400, detail="Cookies file is required for YouTube downloads")
         else:
             s3_client = boto3.client("s3")
@@ -914,13 +887,7 @@ class clipstream_ai:
                 processing_success = True
             except Exception as e:
                 print(f"[ERROR] Trailer generation failed: {e}")
-                # Update status to failed in database via HTTP call to frontend
-                try:
-                    import requests
-                    requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
-                                json={"s3_key": s3_key, "status": "failed", "error": str(e)}, timeout=10)
-                except:
-                    pass  # Don't fail if status update fails
+                raise Exception(f"Trailer generation failed: {e}")
         else:
             # Create individual clips (existing behavior)
             print("Generating individual clips...")
@@ -939,21 +906,13 @@ class clipstream_ai:
                 processing_success = True
             elif not clip_moments:
                 print("[ERROR] No moments identified by AI for clip generation")
-                try:
-                    import requests
-                    requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
-                                json={"s3_key": s3_key, "status": "failed", "error": "No suitable moments found in video"}, timeout=10)
-                except:
-                    pass
+                raise Exception("No suitable moments found in video")
         
         # Mark as processed if successful and deduct credits
         if processing_success:
-            try:
-                import requests
-                requests.post(f"{os.environ.get('FRONTEND_URL', 'https://clipstream-ai.vercel.app')}/api/update-status", 
-                            json={"s3_key": s3_key, "status": "processed"}, timeout=10)
-            except:
-                pass
+            print(f"Processing completed successfully for {s3_key}")
+        else:
+            raise Exception("Processing failed - no clips or trailer were generated")
         
         # Clean up temporary files after processing
         if base_dir.exists():

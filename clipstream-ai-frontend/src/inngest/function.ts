@@ -75,46 +75,65 @@ export const processVideo = inngest.createFunction(
         });
 
         // Call the backend endpoint to process the video
-        await step.run("call-modal-endpoint", async () => {
-          await fetch(env.PROCESS_VIDEO_ENDPOINT, {
-            method: "POST",
-            body: JSON.stringify({
-              s3_key: s3Key,
-              youtube_url: youtubeUrl ?? null,
-              cookies_s3_key: cookiesPath ?? null,
-              generate_trailer: generateTrailer,
-            }),
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`,
-            },
-          });
+        const backendResponse = await step.run(
+          "call-modal-endpoint",
+          async () => {
+            const response = await fetch(env.PROCESS_VIDEO_ENDPOINT, {
+              method: "POST",
+              body: JSON.stringify({
+                s3_key: s3Key,
+                youtube_url: youtubeUrl ?? null,
+                cookies_s3_key: cookiesPath ?? null,
+                generate_trailer: generateTrailer,
+              }),
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`,
+              },
+            });
+
+            // Check if the backend request was successful
+            if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(
+                `Backend processing failed: ${response.status} - ${errorText}`,
+              );
+            }
+
+            return response;
+          },
+        );
+
+        // Wait a bit for backend processing to complete and S3 to be consistent
+        await step.run("wait-for-processing", async () => {
+          // For trailers, wait longer for S3 eventual consistency
+          const waitTime = generateTrailer ? 15000 : 5000; // 15s for trailers, 5s for clips
+          console.log(`Waiting ${waitTime}ms for S3 consistency...`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
         });
 
         // Discover generated clips in S3 and create DB records
         const { clipsFound } = await step.run(
           "create-clips-in-db",
           async () => {
-            // For trailers, wait a bit for S3 eventual consistency
-            if (generateTrailer) {
-              console.log("Waiting for S3 consistency for trailer...");
-              await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 second delay
-            }
-
             const folderPrefix = s3Key.split("/")[0]!;
             const allKeys = await listS3ObjectsByPrefix(folderPrefix);
             console.log(
               `Found ${allKeys.length} files in S3 folder: ${allKeys.join(", ")}`,
             );
 
-            // Filter out the original video file
+            // Filter out the original video file and only include actual clips/trailers
             const clipKeys = allKeys.filter(
               (key): key is string =>
-                key != undefined && !key.endsWith("original.mp4"),
+                key != undefined &&
+                !key.endsWith("original.mp4") &&
+                (key.endsWith(".mp4") ||
+                  key.includes("clip_") ||
+                  key.includes("trailer")),
             );
             console.log(`Filtered clip keys: ${clipKeys.join(", ")}`);
 
-            // Create DB records for each discovered clip
+            // Only create DB records if we actually found clips
             if (clipKeys.length > 0) {
               await db.clip.createMany({
                 data: clipKeys.map((clipKey) => ({
@@ -125,12 +144,16 @@ export const processVideo = inngest.createFunction(
                   title: generateTrailer ? "AI Generated Trailer" : null,
                 })),
               });
+            } else {
+              // If no clips were found, this indicates a processing failure
+              throw new Error("No clips were generated during processing");
             }
+
             return { clipsFound: clipKeys.length };
           },
         );
 
-        // Deduct credits based on number of clips found
+        // Deduct credits only if clips were successfully created
         await step.run("deduct-credits", async () => {
           if (clipsFound > 0) {
             await db.user.update({
@@ -142,7 +165,7 @@ export const processVideo = inngest.createFunction(
           }
         });
 
-        // Update file status to 'processed'
+        // Update file status to 'processed' only if everything succeeded
         await step.run("set-status-processed", async () => {
           await db.uploadedFile.update({
             where: { id: uploadedFileId },
@@ -158,11 +181,18 @@ export const processVideo = inngest.createFunction(
           });
         });
       }
-    } catch {
+    } catch (error) {
       // Handle any errors during processing and mark file as failed
-      await db.uploadedFile.update({
-        where: { id: uploadedFileId },
-        data: { status: "failed" },
+      console.error("Processing failed:", error);
+      await step.run("set-status-failed", async () => {
+        await db.uploadedFile.update({
+          where: { id: uploadedFileId },
+          data: {
+            status: "failed",
+            // Add error message to displayName for debugging
+            displayName: `Failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        });
       });
     }
   },

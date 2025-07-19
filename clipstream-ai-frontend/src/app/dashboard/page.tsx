@@ -42,6 +42,12 @@ export default async function DashboardPage() {
         },
       },
       clips: {
+        where: {
+          // Only fetch clips from successfully processed uploads
+          uploadedFile: {
+            status: "processed",
+          },
+        },
         orderBy: {
           createdAt: "desc", // Most recent clips first
         },
