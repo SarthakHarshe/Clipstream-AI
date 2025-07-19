@@ -52,11 +52,15 @@ export async function POST(req: NextRequest) {
     }),
   );
 
+  // Create a proper UUID-based S3 key for YouTube videos (same as manual uploads)
+  const videoUuid = randomUUID();
+  const videoS3Key = `${videoUuid}/original.mp4`;
+
   // Create UploadedFile DB record
   const uploadedFile = await db.uploadedFile.create({
     data: {
       userId: session.user.id,
-      s3Key: url, // Placeholder, backend will download
+      s3Key: videoS3Key, // Use proper UUID-based S3 key
       displayName: `YouTube: ${url}`,
       uploaded: true,
       status: "queued",

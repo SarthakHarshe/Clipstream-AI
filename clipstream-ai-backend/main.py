@@ -306,8 +306,8 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start:float, cl
 # with animated titles, transitions, and enhanced visual effects
 def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_key: str, clip_moments: list, transcript_segments: list):
     """
-    Create an AI-generated 60-second trailer that combines multiple short moments with animated titles.
-    Uses a content-focused approach that respects natural moment durations.
+    Create an AI-generated 60-second trailer that combines multiple moments with narrative flow.
+    Uses a content-focused approach that respects natural moment durations and builds suspense.
     
     Args:
         base_dir: Base directory for processing
@@ -316,20 +316,20 @@ def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3
         clip_moments: List of identified moments with start/end times
         transcript_segments: Word-level transcript segments
     """
-    print(f"Creating content-focused trailer from {len(clip_moments)} moments...")
+    print(f"Creating narrative-focused trailer from {len(clip_moments)} moments...")
     
     # Create trailer directory structure
     trailer_dir = base_dir / "trailer"
     trailer_dir.mkdir(parents=True, exist_ok=True)
     
-    # Content-focused selection: prioritize quality over rigid timing
+    # Narrative-focused selection: prioritize story flow over rigid timing
     selected_moments = []
     total_content_duration = 0
-    target_total_duration = 60  # Total target including titles/transitions
-    max_content_duration = 50   # Allow 50 seconds for content, 10 for titles/transitions
+    target_total_duration = 60  # Total target including transitions
+    max_content_duration = 55   # Allow 55 seconds for content, 5 for transitions
     
-    # Sort moments by duration to prioritize well-sized segments
-    sorted_moments = sorted(clip_moments, key=lambda m: m["end"] - m["start"], reverse=True)
+    # Sort moments by start time to maintain chronological order for narrative flow
+    sorted_moments = sorted(clip_moments, key=lambda m: m["start"])
     
     for moment in sorted_moments:
         if total_content_duration >= max_content_duration:
@@ -337,13 +337,13 @@ def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3
             
         original_duration = moment["end"] - moment["start"]
         
-        # Content-focused rules:
-        # 1. Include short impactful moments (5+ seconds) as-is
-        # 2. Include medium moments (8-18 seconds) as-is  
+        # Content-focused rules for variable-length moments:
+        # 1. Keep short impactful moments (3-8 seconds) as-is for hooks and cliffhangers
+        # 2. Keep medium moments (8-18 seconds) as-is for building tension
         # 3. Only trim very long moments (18+ seconds) to preserve content flow
-        # 4. Skip extremely short moments (under 4 seconds) that lack context
+        # 4. Skip extremely short moments (under 3 seconds) that lack context
         
-        if original_duration < 4:
+        if original_duration < 3:
             print(f"Skipping too-short moment: {original_duration:.1f}s")
             continue
         elif original_duration <= 18:
@@ -353,10 +353,10 @@ def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3
             print(f"Including natural moment: {final_duration:.1f}s")
         else:
             # Only trim if really necessary (18+ seconds), but preserve the best part
-            # Take first 15 seconds to keep the setup/question
+            # Take first 18 seconds to keep the setup and impact
             adjusted_moment = moment.copy()
-            adjusted_moment["end"] = adjusted_moment["start"] + 15
-            final_duration = 15
+            adjusted_moment["end"] = adjusted_moment["start"] + 18
+            final_duration = 18
             print(f"Trimming long moment from {original_duration:.1f}s to {final_duration:.1f}s")
         
         # Check if adding this moment would exceed our budget
@@ -367,7 +367,7 @@ def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3
         else:
             # If we're close to the limit, try to fit a shorter remaining moment
             remaining_budget = max_content_duration - total_content_duration
-            if remaining_budget >= 5 and final_duration > remaining_budget:
+            if remaining_budget >= 3 and final_duration > remaining_budget:
                 # Trim this moment to fit the remaining budget
                 adjusted_moment["end"] = adjusted_moment["start"] + remaining_budget
                 selected_moments.append(adjusted_moment)
@@ -378,8 +378,8 @@ def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3
                 print(f"Skipping moment - would exceed budget ({final_duration:.1f}s > {remaining_budget:.1f}s remaining)")
                 continue
         
-        # Stop if we have enough content (aim for 3-5 moments)
-        if len(selected_moments) >= 5:
+        # Stop if we have enough content (aim for 4-6 moments for good narrative flow)
+        if len(selected_moments) >= 6:
             break
     
     if not selected_moments:
@@ -409,8 +409,8 @@ def create_trailer(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3
     if not processed_clips:
         raise Exception("No valid clips generated for trailer")
     
-    # Combine clips without any titles or overlays
-    final_trailer_path = combine_clips_simple(trailer_dir, processed_clips, s3_key)
+    # Combine clips with improved transitions for better narrative flow
+    final_trailer_path = combine_clips_with_narrative_flow(trailer_dir, processed_clips, s3_key)
     
     return final_trailer_path
 
@@ -472,11 +472,94 @@ def process_trailer_segment(trailer_dir: pathlib.Path, original_video_path: path
     vertical_video_path = pyavi_path / "vertical.mp4"
     create_vertical_video(tracks, scores, pyframes_path, pyavi_path, audio_path, vertical_video_path)
     
-    # Add subtitles with shorter word limits for trailer
+    # Add subtitles with shorter word limits for trailer (better for quick reading)
     subtitled_path = pyavi_path / "subtitled.mp4"
-    create_subtitles_with_ffmpeg(transcript_segments, start_time, end_time, str(vertical_video_path), str(subtitled_path), max_words=2)
+    create_subtitles_with_ffmpeg(transcript_segments, start_time, end_time, str(vertical_video_path), str(subtitled_path), max_words=3)
     
     return subtitled_path
+
+def combine_clips_with_narrative_flow(trailer_dir: pathlib.Path, processed_clips: list, s3_key: str):
+    """
+    Combine clips with improved transitions for better narrative flow and suspense building.
+    """
+    print("Combining clips into trailer with narrative flow...")
+    
+    # Create input list for concatenation
+    input_list_path = trailer_dir / "input_list.txt"
+    with open(input_list_path, "w") as f:
+        for clip_info in processed_clips:
+            f.write(f"file '{clip_info['path']}'\n")
+    
+    # Final output setup
+    output_s3_key = f"{s3_key}/trailer.mp4"
+    final_trailer_path = trailer_dir / "final_trailer.mp4"
+    
+    # Calculate total duration for proper fade timing
+    total_duration = sum(clip_info['duration'] for clip_info in processed_clips)
+    
+    # Create more sophisticated transitions for narrative flow:
+    # - Quick fade-in for opening hook
+    # - Smooth crossfades between tension-building moments
+    # - Dramatic fade-out for cliffhanger ending
+    
+    # Build complex filter for better transitions
+    filter_complex = []
+    input_count = len(processed_clips)
+    
+    # Add fade-in to first clip (quick attention grabber)
+    filter_complex.append(f"[0:v]fade=in:0:0.5[v0]")
+    
+    # Add crossfades between clips for smooth narrative flow
+    for i in range(1, input_count):
+        # Crossfade between clips with 0.3s overlap
+        filter_complex.append(f"[{i}:v]fade=in:0:0.3[v{i}]")
+        if i == 1:
+            filter_complex.append(f"[v0][v1]xfade=transition=fade:duration=0.3:offset={processed_clips[0]['duration']-0.3}[tmp1]")
+        else:
+            filter_complex.append(f"[tmp{i-1}][v{i}]xfade=transition=fade:duration=0.3:offset={sum(clip['duration'] for clip in processed_clips[:i])-0.3}[tmp{i}]")
+    
+    # Add dramatic fade-out to last clip (cliffhanger effect)
+    last_clip_duration = processed_clips[-1]['duration']
+    filter_complex.append(f"[tmp{input_count-1}]fade=out:st={last_clip_duration-1}:d=1[v]")
+    
+    # Combine audio with crossfades
+    audio_filter = []
+    for i in range(input_count):
+        audio_filter.append(f"[{i}:a]afade=in:0:0.3[a{i}]")
+    
+    # Crossfade audio
+    for i in range(1, input_count):
+        if i == 1:
+            audio_filter.append(f"[a0][a1]acrossfade=d=0.3[atmp1]")
+        else:
+            audio_filter.append(f"[atmp{i-1}][a{i}]acrossfade=d=0.3[atmp{i}]")
+    
+    # Build the complete filter complex
+    filter_str = ";".join(filter_complex + audio_filter)
+    
+    # Combine clips with sophisticated transitions
+    concat_command = (f"ffmpeg -f concat -safe 0 -i {input_list_path} "
+                      f"-filter_complex \"{filter_str}\" "
+                      f"-map \"[v]\" -map \"[atmp{input_count-1}]\" "
+                      f"-c:v h264 -preset fast -crf 23 -c:a aac -b:a 128k "
+                      f"-t 60 {final_trailer_path}")
+    
+    try:
+        subprocess.run(concat_command, shell=True, check=True)
+    except subprocess.CalledProcessError:
+        # Fallback to simple concatenation if complex filter fails
+        print("Complex filter failed, falling back to simple concatenation...")
+        simple_concat_command = (f"ffmpeg -f concat -safe 0 -i {input_list_path} "
+                                f"-c:v h264 -preset fast -crf 23 -c:a aac "
+                                f"-t 60 {final_trailer_path}")
+        subprocess.run(simple_concat_command, shell=True, check=True)
+    
+    # Upload to S3
+    s3_client = boto3.client("s3")
+    s3_client.upload_file(str(final_trailer_path), "clipstream-ai", output_s3_key)
+    
+    print(f"Trailer uploaded to S3: {output_s3_key}")
+    return output_s3_key
 
 def combine_clips_simple(trailer_dir: pathlib.Path, processed_clips: list, s3_key: str):
     """
@@ -714,28 +797,35 @@ class clipstream_ai:
                 transcript_str = str(limited_transcript)
                 print(f"Reduced transcript to {len(limited_transcript)} words")
             
+            print("Calling Gemini for trailer moment identification...")
             response = self.gemini_client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents="""
-    This is a podcast video transcript with word-level timestamps. I need to create a 60-second AI trailer that showcases the most engaging highlights.
+    This is a podcast video transcript with word-level timestamps. I need to create a 60-second AI trailer that builds suspense and makes viewers want to watch the full video.
 
-    Your task: Find 4-6 SHORT, IMPACTFUL moments (8-15 seconds each) that would make viewers want to watch the full video.
+    Your task: Find 4-6 VARIABLE-LENGTH moments that create a compelling narrative arc for a trailer.
 
-    Focus on:
-    - Surprising revelations or "wow" moments
-    - Emotional peaks (excitement, shock, laughter)
-    - Controversial or thought-provoking statements
-    - Memorable quotes or one-liners
-    - Key insights or breakthrough moments
-    - Dramatic story moments or cliffhangers
+    Trailer Structure Goals:
+    1. OPENING HOOK (5-8 seconds): Start with a surprising statement or question that grabs attention
+    2. BUILDING TENSION (8-15 seconds each): Include 2-3 moments that escalate curiosity and emotional investment
+    3. CLIMAX/REVELATION (10-20 seconds): A major insight, revelation, or dramatic moment
+    4. CLIFFHANGER (5-10 seconds): End with something that leaves viewers wanting more
+
+    Content Focus:
+    - Start with attention-grabbing statements or provocative questions
+    - Include emotional peaks (excitement, shock, laughter, surprise)
+    - Add controversial or thought-provoking statements
+    - Include key insights or breakthrough moments
+    - End with a cliffhanger or unresolved tension
+    - Avoid greetings, thanks, or mundane conversation
 
     Rules:
-    - Each moment must be 8-15 seconds (no longer, no shorter)
+    - Variable lengths: 5-20 seconds depending on content impact
     - Moments should NOT overlap
     - Use exact timestamps from the transcript
-    - Prioritize standalone moments that don't need context
-    - Avoid greetings, thanks, or mundane conversation
-    - Select moments that create curiosity or emotional impact
+    - Prioritize moments that create curiosity and emotional impact
+    - Consider narrative flow: hook → tension → climax → cliffhanger
+    - Select moments that work together to tell a story
 
     Output format: [{"start": seconds, "end": seconds}, {"start": seconds, "end": seconds}, ...]
     Must be valid JSON readable by json.loads()
@@ -744,8 +834,33 @@ class clipstream_ai:
 
     Transcript:\n\n""" + transcript_str
             )
-            print(f"Identified trailer moments response: {response.text}")
-            return response.text
+            
+            response_text = response.text
+            print(f"Raw Gemini response: {response_text}")
+            
+            # Check if response is empty or None
+            if not response_text or response_text.strip() == "":
+                print("[WARNING] Gemini returned empty response, returning empty array")
+                return "[]"
+            
+            # Try to extract JSON from markdown code blocks if present
+            if "```json" in response_text:
+                start_idx = response_text.find("```json") + 7
+                end_idx = response_text.find("```", start_idx)
+                if end_idx != -1:
+                    response_text = response_text[start_idx:end_idx].strip()
+                    print(f"Extracted JSON from markdown: {response_text}")
+            
+            # Validate that it's valid JSON
+            try:
+                json.loads(response_text)
+                print(f"Valid JSON confirmed: {response_text}")
+                return response_text
+            except json.JSONDecodeError as json_error:
+                print(f"[ERROR] Invalid JSON from Gemini: {json_error}")
+                print(f"Response text: {response_text}")
+                return "[]"
+                
         except Exception as e:
             print(f"[ERROR] Gemini API call failed for trailer: {e}")
             return "[]"
@@ -775,8 +890,10 @@ class clipstream_ai:
         cookies_path = None
         
         # Determine the S3 key for clips - use original s3_key directory for consistency with frontend
+        # For both YouTube and manual uploads, s3_key is now the proper UUID-based path
         s3_key_dir = os.path.dirname(s3_key)
         clips_s3_key = s3_key_dir
+        print(f"Using clips_s3_key: {clips_s3_key} (from s3_key: {s3_key})")
         
         if youtube_url and cookies_s3_key:
             # Download cookies file from S3 to a temp file
@@ -851,23 +968,29 @@ class clipstream_ai:
         transcript_segments = json.loads(transcript_segments_json)
 
         # Use different Gemini prompts for clips vs trailers
+        print(f"generate_trailer flag: {generate_trailer}")
         if generate_trailer:
             print("Using trailer-optimized prompt for moment identification...")
             identified_moments_raw = self.identify_trailer_moments(transcript_segments)
         else:
             print("Using clips-optimized prompt for moment identification...")
-        identified_moments_raw = self.identify_moments(transcript_segments)
+            identified_moments_raw = self.identify_moments(transcript_segments)
 
+        print(f"Raw identified_moments_raw: {identified_moments_raw}")
         cleaned_json_string = identified_moments_raw.strip()
         if cleaned_json_string.startswith("```json"):
             cleaned_json_string = cleaned_json_string[len("```json"):].strip()
         if cleaned_json_string.endswith("```"):
             cleaned_json_string = cleaned_json_string[:-len("```")].strip()
 
+        print(f"Cleaned JSON string: {cleaned_json_string}")
+        
         try:
             clip_moments = json.loads(cleaned_json_string)
+            print(f"Successfully parsed JSON: {clip_moments}")
         except Exception as e:
             print(f"[ERROR] Failed to parse Gemini output: {e}")
+            print(f"JSON string that failed: '{cleaned_json_string}'")
             clip_moments = []
         if not isinstance(clip_moments, list):
             print("[ERROR] identified moments is not a list")
@@ -881,7 +1004,26 @@ class clipstream_ai:
             print("Generating AI trailer with transitions and effects...")
             try:
                 if not clip_moments:
-                    raise Exception("No moments identified by AI for trailer generation")
+                    print("[WARNING] No trailer moments found, falling back to regular clip moments...")
+                    # Fallback: try to get regular clip moments and use them for trailer
+                    fallback_moments_raw = self.identify_moments(transcript_segments)
+                    fallback_cleaned = fallback_moments_raw.strip()
+                    if fallback_cleaned.startswith("```json"):
+                        fallback_cleaned = fallback_cleaned[len("```json"):].strip()
+                    if fallback_cleaned.endswith("```"):
+                        fallback_cleaned = fallback_cleaned[:-len("```")].strip()
+                    
+                    try:
+                        fallback_moments = json.loads(fallback_cleaned)
+                        if isinstance(fallback_moments, list) and len(fallback_moments) > 0:
+                            print(f"Using fallback moments: {fallback_moments}")
+                            clip_moments = fallback_moments
+                        else:
+                            raise Exception("No suitable moments found in video for trailer generation")
+                    except Exception as fallback_error:
+                        print(f"[ERROR] Fallback moment parsing failed: {fallback_error}")
+                        raise Exception("No suitable moments found in video for trailer generation")
+                
                 trailer_s3_key = create_trailer(base_dir, video_path, clips_s3_key, clip_moments, transcript_segments)
                 print(f"Trailer created successfully: {trailer_s3_key}")
                 processing_success = True

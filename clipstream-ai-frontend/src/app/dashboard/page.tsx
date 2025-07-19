@@ -33,6 +33,7 @@ export default async function DashboardPage() {
           s3Key: true,
           displayName: true,
           status: true,
+          source: true, // Include source to distinguish between YouTube and regular uploads
           createdAt: true,
           _count: {
             select: {
@@ -70,6 +71,7 @@ export default async function DashboardPage() {
     s3Key: file.s3Key,
     fileName: file.displayName ?? "Unknown FileName",
     status: file.status,
+    source: file.source, // Include source for filtering
     clipsCount: file._count.clips,
     createdAt: file.createdAt,
   }));

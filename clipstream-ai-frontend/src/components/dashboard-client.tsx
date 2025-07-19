@@ -85,6 +85,7 @@ export function DashboardClient({
     s3Key: string;
     fileName: string;
     status: string;
+    source: string; // Add source field for filtering
     clipsCount: number;
     createdAt: Date;
   }[];
@@ -755,7 +756,7 @@ export function DashboardClient({
                         </CardHeader>
                         <CardContent>
                           {uploadedFiles.filter(
-                            (file) => !file.s3Key.startsWith("http"),
+                            (file) => file.source === "uploaded",
                           ).length === 0 ? (
                             <p className="text-center text-white/60">
                               No videos uploaded yet. Upload a video above to
@@ -781,9 +782,7 @@ export function DashboardClient({
                               </TableHeader>
                               <TableBody>
                                 {uploadedFiles
-                                  .filter(
-                                    (file) => !file.s3Key.startsWith("http"),
-                                  )
+                                  .filter((file) => file.source === "uploaded")
                                   .map((file) => (
                                     <TableRow
                                       key={file.id}
@@ -1245,9 +1244,8 @@ export function DashboardClient({
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {uploadedFiles.filter((file) =>
-                        file.s3Key.startsWith("http"),
-                      ).length === 0 ? (
+                      {uploadedFiles.filter((file) => file.source === "youtube")
+                        .length === 0 ? (
                         <p className="text-center text-white/60">
                           No YouTube videos imported yet. Import a YouTube video
                           above to get started.
@@ -1272,7 +1270,7 @@ export function DashboardClient({
                           </TableHeader>
                           <TableBody>
                             {uploadedFiles
-                              .filter((file) => file.s3Key.startsWith("http"))
+                              .filter((file) => file.source === "youtube")
                               .map((file) => (
                                 <TableRow
                                   key={file.id}
