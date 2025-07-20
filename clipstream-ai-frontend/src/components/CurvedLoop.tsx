@@ -54,7 +54,7 @@ const CurvedLoop: FC<CurvedLoopProps> = ({
     const step = () => {
       tspansRef.current.forEach((t) => {
         if (!t) return;
-        let x = parseFloat(t.getAttribute("x") || "0");
+        let x = parseFloat(t.getAttribute("x") ?? "0");
         if (!dragRef.current) {
           const delta =
             dirRef.current === "right" ? Math.abs(speed) : -Math.abs(speed);
@@ -90,7 +90,7 @@ const CurvedLoop: FC<CurvedLoopProps> = ({
     velRef.current = dx;
     tspansRef.current.forEach((t) => {
       if (!t) return;
-      let x = parseFloat(t.getAttribute("x") || "0");
+      let x = parseFloat(t.getAttribute("x") ?? "0");
       x += dx;
       const maxX = (tspansRef.current.length - 1) * spacing;
       if (x < -spacing) x = maxX;

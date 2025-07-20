@@ -75,7 +75,7 @@ export const processVideo = inngest.createFunction(
         });
 
         // Call the backend endpoint to process the video
-        const backendResponse = await step.run(
+        await step.run(
           "call-modal-endpoint",
           async () => {
             const response = await fetch(env.PROCESS_VIDEO_ENDPOINT, {

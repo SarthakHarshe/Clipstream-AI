@@ -8,6 +8,7 @@ export interface BentoCardProps {
   description?: string;
   label?: string;
   step?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon?: React.ComponentType<any>;
   textAutoHide?: boolean;
   disableAnimations?: boolean;
@@ -15,16 +16,16 @@ export interface BentoCardProps {
 
 export interface ProcessBentoProps {
   textAutoHide?: boolean;
-  enableStars?: boolean;
+  _enableStars?: boolean;
   enableSpotlight?: boolean;
   enableBorderGlow?: boolean;
   disableAnimations?: boolean;
   spotlightRadius?: number;
   particleCount?: number;
-  enableTilt?: boolean;
+  _enableTilt?: boolean;
   glowColor?: string;
   clickEffect?: boolean;
-  enableMagnetism?: boolean;
+  _enableMagnetism?: boolean;
 }
 
 const DEFAULT_PARTICLE_COUNT = 12;
@@ -218,16 +219,16 @@ const ProcessBentoCard: React.FC<BentoCardProps> = ({
 
 const ProcessBento: React.FC<ProcessBentoProps> = ({
   textAutoHide = false,
-  enableStars = true,
+  _enableStars = true,
   enableSpotlight = true,
   enableBorderGlow = true,
   disableAnimations = false,
   spotlightRadius = DEFAULT_SPOTLIGHT_RADIUS,
   particleCount = DEFAULT_PARTICLE_COUNT,
-  enableTilt = true,
+  _enableTilt = true,
   glowColor = DEFAULT_GLOW_COLOR,
   clickEffect = true,
-  enableMagnetism = false,
+  _enableMagnetism = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);

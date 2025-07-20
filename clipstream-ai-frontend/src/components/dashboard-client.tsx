@@ -71,7 +71,6 @@ import {
   Youtube,
   Film,
   Mic,
-  Download,
 } from "lucide-react";
 
 // Animation

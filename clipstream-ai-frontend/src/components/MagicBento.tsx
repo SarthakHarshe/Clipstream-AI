@@ -8,6 +8,7 @@ export interface BentoCardProps {
   description?: string;
   label?: string;
   step?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon?: React.ComponentType<any>;
   textAutoHide?: boolean;
   disableAnimations?: boolean;
@@ -429,7 +430,7 @@ const GlobalSpotlight: React.FC<{
         e.clientY >= rect.top &&
         e.clientY <= rect.bottom;
 
-      isInsideSection.current = mouseInside || false;
+      isInsideSection.current = mouseInside ?? false;
       const cards = gridRef.current.querySelectorAll(".card");
 
       if (!mouseInside) {
@@ -662,7 +663,7 @@ const MagicBento: React.FC<BentoProps> = ({
             }`;
 
             const cardStyle = {
-              backgroundColor: card.color || "var(--background-dark)",
+              backgroundColor: card.color ?? "var(--background-dark)",
               borderColor: "var(--border-color)",
               color: "var(--white)",
               "--glow-x": "50%",

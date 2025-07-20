@@ -37,7 +37,7 @@ import { redirect } from "next/navigation";
  * Initialize Stripe client with secret key from environment variables.
  * Uses the latest API version for optimal compatibility and features.
  */
-const stripe = new Stripe(env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-06-30.basil",
 });
 

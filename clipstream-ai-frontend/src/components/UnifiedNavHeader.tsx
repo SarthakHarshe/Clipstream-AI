@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useScroll, useTransform, useMotionTemplate } from "framer-motion";
-import { Github, Video, User, CreditCard, LogOut } from "lucide-react";
+import { motion, useScroll, useTransform, useMotionTemplate, useMotionValue } from "framer-motion";
+import { Github, User, CreditCard, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
