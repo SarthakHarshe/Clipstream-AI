@@ -75,34 +75,27 @@ export const processVideo = inngest.createFunction(
         });
 
         // Call the backend endpoint to process the video
-        await step.run(
-          "call-modal-endpoint",
-          async () => {
-            const response = await fetch(env.PROCESS_VIDEO_ENDPOINT, {
-              method: "POST",
-              body: JSON.stringify({
-                s3_key: s3Key,
-                youtube_url: youtubeUrl ?? null,
-                cookies_s3_key: cookiesPath ?? null,
-                generate_trailer: generateTrailer,
-              }),
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`,
-              },
-            });
-
-            // Check if the backend request was successful
-            if (!response.ok) {
-              const errorText = await response.text();
-              throw new Error(
-                `Backend processing failed: ${response.status} - ${errorText}`,
-              );
-            }
-
-            return response;
+        const response = await step.fetch(env.PROCESS_VIDEO_ENDPOINT, {
+          method: "POST",
+          body: JSON.stringify({
+            s3_key: s3Key,
+            youtube_url: youtubeUrl ?? null,
+            cookies_s3_key: cookiesPath ?? null,
+            generate_trailer: generateTrailer,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`,
           },
-        );
+        });
+
+        // Check if the backend request was successful
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `Backend processing failed: ${response.status} - ${errorText}`,
+          );
+        }
 
         // Wait a bit for backend processing to complete and S3 to be consistent
         await step.run("wait-for-processing", async () => {
