@@ -1112,10 +1112,15 @@ class clipstream_ai:
         cookies_s3_key = request.cookies_s3_key
         generate_trailer = request.generate_trailer
 
+        print(f"[Modal] process_video endpoint called with s3_key={s3_key}, youtube_url={youtube_url}, generate_trailer={generate_trailer}")
+
         # Validate authentication token
         if token.credentials != os.environ["AUTH_TOKEN"]:
+            print(f"[Modal] Authentication failed for s3_key={s3_key}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Incorrect bearer token", headers={"WWW-Authenticate": "Bearer"})
+        
+        print(f"[Modal] Authentication successful for s3_key={s3_key}")
 
         # Create unique processing directory
         run_id = str(uuid.uuid4())
@@ -1295,13 +1300,18 @@ class clipstream_ai:
 
         # Validate processing success
         if processing_success:
-            print(f"Processing completed successfully for {s3_key}")
+            print(f"[Modal] Processing completed successfully for {s3_key}")
         else:
+            print(f"[Modal] Processing failed for {s3_key} - no clips or trailer were generated")
             raise Exception("Processing failed - no clips or trailer were generated")
 
         # Clean up temporary files after processing
+        print(f"[Modal] Cleaning up temporary files for {s3_key}")
         if base_dir.exists():
             shutil.rmtree(base_dir, ignore_errors=True)
+            
+        print(f"[Modal] process_video endpoint completed for {s3_key}")
+        return {"status": "success", "message": "Video processing completed"}
 
 
 @app.local_entrypoint()
