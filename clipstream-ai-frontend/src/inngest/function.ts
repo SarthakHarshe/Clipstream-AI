@@ -38,7 +38,7 @@ export const processVideo = inngest.createFunction(
     };
 
     console.log(`[Inngest] Received process-video-events for uploadedFileId: ${uploadedFileId}`, {
-      eventData: event.data,
+      eventData: event.data as { uploadedFileId: string; userId: string },
       eventId: event.id,
       timestamp: event.ts
     });
