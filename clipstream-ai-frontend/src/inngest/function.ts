@@ -20,8 +20,14 @@ export const processVideo = inngest.createFunction(
       limit: 1, // Only one job per user at a time
       key: "event.data.uploadedFileId", // Concurrency key based on specific file
     },
-    // Set timeout to 20 minutes to allow Modal processing to complete
-    // Modal typically takes 6-8 minutes, so 20 minutes provides buffer
+    // Configure timeouts for long-running Modal processing
+    timeouts: {
+      // Allow up to 2 minutes for function to start
+      start: "2m",
+      // Allow up to 15 minutes total for function execution
+      // Modal typically takes 5-8 minutes, so 15 minutes provides buffer
+      finish: "15m",
+    },
     cancelOn: [
       {
         event: "process-video-cancel",
