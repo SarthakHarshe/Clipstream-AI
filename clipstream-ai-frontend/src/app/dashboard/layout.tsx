@@ -35,7 +35,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         const userData = (await response.json()) as User;
         setUser(userData);
       } catch (error) {
-        console.error("Auth check failed:", error);
         window.location.href = "/login";
       } finally {
         setLoading(false);
@@ -53,10 +52,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         if (response.ok) {
           const userData = (await response.json()) as User;
           setUser(userData);
-          console.log("Auto-refreshed user credits:", userData.credits);
         }
       } catch (error) {
-        console.error("Failed to refresh user credits:", error);
       }
     };
 

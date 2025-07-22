@@ -76,11 +76,9 @@ function ClipCard({ clip }: { clip: ClipWithUploadedFile }) {
         const result = await getClipPlayUrl(clip.id);
         if (result.success && result.url) {
           setPlayUrl(result.url);
-        } else if (result.error) {
-          console.error("Failed to get play url:", result.error);
         }
       } catch (error) {
-        console.error("Failed to get play url:", error);
+        // Play URL fetch failed - component will show fallback state
       } finally {
         setIsLoadingUrl(false);
       }

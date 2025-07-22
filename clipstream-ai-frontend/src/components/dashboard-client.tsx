@@ -201,7 +201,6 @@ export function DashboardClient({
 
     if (hasProcessingFiles) {
       const interval = setInterval(() => {
-        console.log("Auto-refreshing dashboard due to processing files...");
         router.refresh();
       }, 30000); // Refresh every 30 seconds
 
@@ -578,9 +577,6 @@ export function DashboardClient({
                                   // Let the dropzone handle the click
                                 } catch {
                                   // Silently handle any file picker errors
-                                  console.debug(
-                                    "File picker API not available, using fallback",
-                                  );
                                 }
                               }}
                             >

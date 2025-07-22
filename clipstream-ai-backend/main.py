@@ -1191,7 +1191,7 @@ class clipstream_ai:
                 # Verify cookies file exists before attempting download
                 try:
                     s3_client.head_object(Bucket="clipstream-ai", Key=cookies_s3_key)
-                    print(f"[DEBUG] Cookies file found in S3: {cookies_s3_key}")
+                    # Cookies file found in S3
                 except Exception as e:
                     print(f"[ERROR] Cookies file not found in S3: {cookies_s3_key} - {e}")
                     raise HTTPException(status_code=400, detail="Cookies file missing. Please upload a fresh cookies.txt file.")
@@ -1201,7 +1201,7 @@ class clipstream_ai:
                     try:
                         s3_client.download_fileobj("clipstream-ai", cookies_s3_key, tmp)
                         cookies_path = tmp.name
-                        print(f"[DEBUG] Successfully downloaded cookies to: {cookies_path}")
+                        # Successfully downloaded cookies
                     except Exception as e:
                         print(f"[ERROR] Failed to download cookies file: {e}")
                         raise HTTPException(status_code=400, detail="Failed to access cookies file. Please upload a fresh cookies.txt file.")
@@ -1218,7 +1218,7 @@ class clipstream_ai:
                     }
                     if cookies_path:
                         ydl_opts['cookiefile'] = cookies_path
-                        print(f"[DEBUG] Using cookies file for YouTube download")
+                        # Using cookies file for YouTube download
                     else:
                         print("[WARNING] No cookies file provided for YouTube download")
 
@@ -1227,7 +1227,7 @@ class clipstream_ai:
                         duration = info.get('duration', 0)
                         if duration > 60 * 60:  # 1 hour limit
                             raise Exception("Video too long (max 1 hour)")
-                        print(f"[DEBUG] Successfully downloaded YouTube video: {youtube_url}")
+                        # Successfully downloaded YouTube video
                 except Exception as e:
                     print(f"[ERROR] YouTube download failed: {e}")
                     shutil.rmtree(base_dir, ignore_errors=True)
@@ -1237,14 +1237,14 @@ class clipstream_ai:
                     if cookies_path:
                         try:
                             os.remove(cookies_path)
-                            print(f"[DEBUG] Deleted temp cookies file: {cookies_path}")
+                            # Deleted temp cookies file
                         except Exception:
                             pass
                     # Clean up S3 cookies file (may fail due to permissions)
                     if cookies_s3_key:
                         try:
                             s3_client.delete_object(Bucket="clipstream-ai", Key=cookies_s3_key)
-                            print(f"[DEBUG] Deleted cookies file from S3: {cookies_s3_key}")
+                            # Deleted cookies file from S3
                         except Exception as e:
                             print(f"[INFO] Could not delete cookies file from S3 (expected if no delete permissions): {e}")
             elif youtube_url:

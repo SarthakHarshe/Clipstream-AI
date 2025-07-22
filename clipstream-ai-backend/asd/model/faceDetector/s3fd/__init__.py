@@ -21,13 +21,11 @@ class S3FD():
         tstamp = time.time()
         self.device = device
 
-        # print('[S3FD] loading with', self.device)
         self.net = S3FDNet(device=self.device).to(self.device)
         PATH = os.path.join(os.getcwd(), PATH_WEIGHT)
         state_dict = torch.load(PATH, map_location=self.device)
         self.net.load_state_dict(state_dict)
         self.net.eval()
-        # print('[S3FD] finished loading (%.4f sec)' % (time.time() - tstamp))
     
     def detect_faces(self, image, conf_th=0.8, scales=[1]):
 

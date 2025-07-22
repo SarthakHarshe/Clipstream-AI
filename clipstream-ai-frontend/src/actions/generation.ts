@@ -56,7 +56,6 @@ import { db } from "~/server/db";
  * ```
  */
 export async function processVideo(uploadedFileId: string) {
-  console.log(`[ManualUpload] processVideo called for uploadedFileId: ${uploadedFileId}`);
   
   // Step 1: Fetch uploaded file details from database
   const uploadedVideo = await db.uploadedFile.findUniqueOrThrow({
@@ -71,20 +70,16 @@ export async function processVideo(uploadedFileId: string) {
     },
   });
 
-  console.log(`[ManualUpload] File status check - uploadedFileId: ${uploadedFileId}, uploaded: ${uploadedVideo.uploaded}, status: ${uploadedVideo.status}`);
 
   // Step 2: Enhanced duplicate prevention - check both uploaded status AND processing status
   if (uploadedVideo.uploaded && uploadedVideo.status === 'processing') {
-    console.log(`[ManualUpload] Skipping duplicate processing for uploadedFileId: ${uploadedFileId} (already processing)`);
     return;
   }
   if (uploadedVideo.uploaded) {
-    console.log(`[ManualUpload] Skipping duplicate processing for uploadedFileId: ${uploadedFileId} (already uploaded)`);
     return;
   }
 
   // Step 3: Send processing event to Inngest background job queue
-  console.log(`[ManualUpload] Sending Inngest event for uploadedFileId: ${uploadedFileId}`);
   await inngest.send({
     name: "process-video-events",
     data: {
@@ -92,7 +87,6 @@ export async function processVideo(uploadedFileId: string) {
       userId: uploadedVideo.userId,
     },
   });
-  console.log(`[ManualUpload] Inngest event sent for uploadedFileId: ${uploadedFileId}`);
 
 
   // Step 4: Mark the file as uploaded in the database

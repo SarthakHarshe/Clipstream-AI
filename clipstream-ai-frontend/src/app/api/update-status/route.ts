@@ -54,13 +54,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    console.log(
-      `Updated status for ${s3_key} to ${status}${error ? ` with error: ${error}` : ""}`,
-    );
-
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Status update failed:", error);
     return NextResponse.json(
       { error: "Failed to update status" },
       { status: 500 },

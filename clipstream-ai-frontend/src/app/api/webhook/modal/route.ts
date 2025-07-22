@@ -19,12 +19,10 @@ export async function POST(request: NextRequest) {
     const expectedAuth = `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`;
     
     if (authHeader !== expectedAuth) {
-      console.error('[Modal Webhook] Unauthorized request');
       return new Response('Unauthorized', { status: 401 });
     }
 
     const payload = await request.json() as ModalWebhookPayload;
-    console.log('[Modal Webhook] Received notification:', payload);
 
     // Send event to Inngest to handle the completion
     await inngest.send({
@@ -37,11 +35,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log('[Modal Webhook] Event sent to Inngest successfully');
     return new Response('OK', { status: 200 });
 
   } catch (error) {
-    console.error('[Modal Webhook] Error processing webhook:', error);
     return new Response('Internal Server Error', { status: 500 });
   }
 }

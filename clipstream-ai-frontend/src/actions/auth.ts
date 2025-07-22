@@ -116,8 +116,7 @@ export async function signUp(data: SignupFormValues): Promise<SignUpResult> {
 
     return { success: true };
   } catch (error: unknown) {
-    // Log the actual error for debugging purposes
-    console.error("Signup error:", error);
+    // Error will be handled and returned to user with appropriate message
 
     // Step 7: Handle specific error types with user-friendly messages
     const errorString = String(error);
