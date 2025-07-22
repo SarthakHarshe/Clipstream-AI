@@ -34,6 +34,7 @@ import ffmpegcv
 import modal
 import numpy as np
 import pysubs2
+import requests
 import yt_dlp
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -41,6 +42,48 @@ from google import genai
 from pydantic import BaseModel
 from tqdm import tqdm
 import whisperx
+
+
+def send_webhook_notification(uploaded_file_id: str, s3_key: str, status: str, error_message: str = None):
+    """
+    Send webhook notification to the frontend about processing completion.
+    
+    Args:
+        uploaded_file_id: ID of the uploaded file
+        s3_key: S3 key of the processed video
+        status: Processing status ("success" or "error")
+        error_message: Error message if status is "error"
+    """
+    try:
+        webhook_url = os.environ.get("WEBHOOK_URL")
+        if not webhook_url:
+            print(f"[Modal] Warning: WEBHOOK_URL not configured, skipping webhook for {uploaded_file_id}")
+            return
+            
+        payload = {
+            "uploaded_file_id": uploaded_file_id,
+            "s3_key": s3_key,
+            "status": status,
+        }
+        
+        if error_message:
+            payload["error_message"] = error_message
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {os.environ['AUTH_TOKEN']}"
+        }
+        
+        print(f"[Modal] Sending webhook to {webhook_url} for {uploaded_file_id} with status {status}")
+        response = requests.post(webhook_url, json=payload, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            print(f"[Modal] Webhook sent successfully for {uploaded_file_id}")
+        else:
+            print(f"[Modal] Webhook failed for {uploaded_file_id}: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"[Modal] Error sending webhook for {uploaded_file_id}: {e}")
 
 
 class ProcessVideoRequest(BaseModel):
@@ -57,11 +100,13 @@ class ProcessVideoRequest(BaseModel):
         cookies_s3_key: Optional S3 key for cookies.txt file (required for
                         YouTube processing)
         generate_trailer: Flag to generate a trailer instead of individual clips
+        uploaded_file_id: ID of the uploaded file for webhook callback
     """
     s3_key: str
     youtube_url: str | None = None
     cookies_s3_key: str | None = None
     generate_trailer: bool = False
+    uploaded_file_id: str
 
 
 # Modal cloud infrastructure configuration
@@ -839,7 +884,7 @@ def process_clip(base_dir: pathlib.Path, original_video_path: pathlib.Path, s3_k
         print(f"[ERROR] S3 upload failed: {e}")
 
 
-@app.cls(gpu="L40S", timeout=900, retries=0, scaledown_window=20, secrets=[modal.Secret.from_name("clipstream-ai-secret")], volumes={mount_path: volume})
+@app.cls(gpu="L40S", timeout=900, retries=0, scaledown_window=20, secrets=[modal.Secret.from_name("clipstream-ai-secret"), modal.Secret.from_name("webhook-config")], volumes={mount_path: volume})
 class clipstream_ai:
     """
     Main AI processing service for automated video clip generation.
@@ -1111,8 +1156,9 @@ class clipstream_ai:
         youtube_url = request.youtube_url
         cookies_s3_key = request.cookies_s3_key
         generate_trailer = request.generate_trailer
+        uploaded_file_id = request.uploaded_file_id
 
-        print(f"[Modal] process_video endpoint called with s3_key={s3_key}, youtube_url={youtube_url}, generate_trailer={generate_trailer}")
+        print(f"[Modal] process_video endpoint called with s3_key={s3_key}, youtube_url={youtube_url}, generate_trailer={generate_trailer}, uploaded_file_id={uploaded_file_id}")
 
         # Validate authentication token
         if token.credentials != os.environ["AUTH_TOKEN"]:
@@ -1122,196 +1168,220 @@ class clipstream_ai:
         
         print(f"[Modal] Authentication successful for s3_key={s3_key}")
 
-        # Create unique processing directory
-        run_id = str(uuid.uuid4())
-        base_dir = pathlib.Path("/tmp") / run_id
-        base_dir.mkdir(parents=True, exist_ok=True)
-
-        video_path = base_dir / "input.mp4"
-        cookies_path = None
-
-        # Determine S3 key for clips - use original s3_key directory for consistency
-        s3_key_dir = os.path.dirname(s3_key)
-        clips_s3_key = s3_key_dir
-        print(f"Using clips_s3_key: {clips_s3_key} (from s3_key: {s3_key})")
-
-        # Handle video source (YouTube or S3)
-        if youtube_url and cookies_s3_key:
-            # Download cookies file from S3 for YouTube authentication
-            s3_client = boto3.client("s3")
-
-            # Verify cookies file exists before attempting download
-            try:
-                s3_client.head_object(Bucket="clipstream-ai", Key=cookies_s3_key)
-                print(f"[DEBUG] Cookies file found in S3: {cookies_s3_key}")
-            except Exception as e:
-                print(f"[ERROR] Cookies file not found in S3: {cookies_s3_key} - {e}")
-                raise HTTPException(status_code=400, detail="Cookies file missing. Please upload a fresh cookies.txt file.")
-
-            # Download cookies to temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
-                try:
-                    s3_client.download_fileobj("clipstream-ai", cookies_s3_key, tmp)
-                    cookies_path = tmp.name
-                    print(f"[DEBUG] Successfully downloaded cookies to: {cookies_path}")
-                except Exception as e:
-                    print(f"[ERROR] Failed to download cookies file: {e}")
-                    raise HTTPException(status_code=400, detail="Failed to access cookies file. Please upload a fresh cookies.txt file.")
-
-            # Download YouTube video using yt-dlp
-            try:
-                ydl_opts = {
-                    'outtmpl': str(video_path),
-                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4',
-                    'merge_output_format': 'mp4',
-                    'quiet': True,
-                    'noplaylist': True,
-                    'max_filesize': 600 * 1024 * 1024,  # 600MB limit
-                }
-                if cookies_path:
-                    ydl_opts['cookiefile'] = cookies_path
-                    print(f"[DEBUG] Using cookies file for YouTube download")
-                else:
-                    print("[WARNING] No cookies file provided for YouTube download")
-
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(youtube_url, download=True)
-                    duration = info.get('duration', 0)
-                    if duration > 60 * 60:  # 1 hour limit
-                        raise Exception("Video too long (max 1 hour)")
-                    print(f"[DEBUG] Successfully downloaded YouTube video: {youtube_url}")
-            except Exception as e:
-                print(f"[ERROR] YouTube download failed: {e}")
-                shutil.rmtree(base_dir, ignore_errors=True)
-                raise HTTPException(status_code=400, detail=f"YouTube download failed: {e}")
-            finally:
-                # Clean up temporary cookies file
-                if cookies_path:
-                    try:
-                        os.remove(cookies_path)
-                        print(f"[DEBUG] Deleted temp cookies file: {cookies_path}")
-                    except Exception:
-                        pass
-                # Clean up S3 cookies file (may fail due to permissions)
-                if cookies_s3_key:
-                    try:
-                        s3_client.delete_object(Bucket="clipstream-ai", Key=cookies_s3_key)
-                        print(f"[DEBUG] Deleted cookies file from S3: {cookies_s3_key}")
-                    except Exception as e:
-                        print(f"[INFO] Could not delete cookies file from S3 (expected if no delete permissions): {e}")
-        elif youtube_url:
-            # YouTube URL provided but no cookies - validation error
-            print("[ERROR] YouTube URL provided but no cookies file")
-            raise HTTPException(status_code=400, detail="Cookies file is required for YouTube downloads")
-        else:
-            # Download video from S3
-            s3_client = boto3.client("s3")
-            s3_client.download_file("clipstream-ai", s3_key, str(video_path))
-
-        # Perform speech transcription and content analysis
-        transcript_segments_json = self.transcribe_video(base_dir, video_path)
-        transcript_segments = json.loads(transcript_segments_json)
-
-        # Identify engaging moments using appropriate AI prompt
-        print(f"generate_trailer flag: {generate_trailer}")
-        if generate_trailer:
-            print("Using trailer-optimized prompt for moment identification...")
-            identified_moments_raw = self.identify_trailer_moments(transcript_segments)
-        else:
-            print("Using clips-optimized prompt for moment identification...")
-            identified_moments_raw = self.identify_moments(transcript_segments)
-
-        print(f"Raw identified_moments_raw: {identified_moments_raw}")
-
-        # Clean and parse JSON response from Gemini
-        cleaned_json_string = identified_moments_raw.strip()
-        if cleaned_json_string.startswith("```json"):
-            cleaned_json_string = cleaned_json_string[len("```json"):].strip()
-        if cleaned_json_string.endswith("```"):
-            cleaned_json_string = cleaned_json_string[:-len("```")].strip()
-
-        print(f"Cleaned JSON string: {cleaned_json_string}")
-
-        # Parse and validate moment data
+        # Wrap processing in try-catch to send error webhooks
         try:
-            clip_moments = json.loads(cleaned_json_string)
-            print(f"Successfully parsed JSON: {clip_moments}")
-        except Exception as e:
-            print(f"[ERROR] Failed to parse Gemini output: {e}")
-            print(f"JSON string that failed: '{cleaned_json_string}'")
-            clip_moments = []
+            # Create unique processing directory
+            run_id = str(uuid.uuid4())
+            base_dir = pathlib.Path("/tmp") / run_id
+            base_dir.mkdir(parents=True, exist_ok=True)
 
-        if not isinstance(clip_moments, list):
-            print("[ERROR] identified moments is not a list")
-            clip_moments = []
+            video_path = base_dir / "input.mp4"
+            cookies_path = None
 
-        # Process moments based on generation type
-        processing_success = False
+            # Determine S3 key for clips - use original s3_key directory for consistency
+            s3_key_dir = os.path.dirname(s3_key)
+            clips_s3_key = s3_key_dir
+            print(f"Using clips_s3_key: {clips_s3_key} (from s3_key: {s3_key})")
 
-        if generate_trailer:
-            # Create a single trailer combining multiple moments
-            print("Generating AI trailer with transitions and effects...")
-            try:
-                if not clip_moments:
-                    print("[WARNING] No trailer moments found, falling back to regular clip moments...")
-                    # Fallback: try to get regular clip moments and use them for trailer
-                    fallback_moments_raw = self.identify_moments(transcript_segments)
-                    fallback_cleaned = fallback_moments_raw.strip()
-                    if fallback_cleaned.startswith("```json"):
-                        fallback_cleaned = fallback_cleaned[len("```json"):].strip()
-                    if fallback_cleaned.endswith("```"):
-                        fallback_cleaned = fallback_cleaned[:-len("```")].strip()
+            # Handle video source (YouTube or S3)
+            if youtube_url and cookies_s3_key:
+                # Download cookies file from S3 for YouTube authentication
+                s3_client = boto3.client("s3")
 
+                # Verify cookies file exists before attempting download
+                try:
+                    s3_client.head_object(Bucket="clipstream-ai", Key=cookies_s3_key)
+                    print(f"[DEBUG] Cookies file found in S3: {cookies_s3_key}")
+                except Exception as e:
+                    print(f"[ERROR] Cookies file not found in S3: {cookies_s3_key} - {e}")
+                    raise HTTPException(status_code=400, detail="Cookies file missing. Please upload a fresh cookies.txt file.")
+
+                # Download cookies to temporary file
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
                     try:
-                        fallback_moments = json.loads(fallback_cleaned)
-                        if isinstance(fallback_moments, list) and len(fallback_moments) > 0:
-                            print(f"Using fallback moments: {fallback_moments}")
-                            clip_moments = fallback_moments
-                        else:
-                            raise Exception("No suitable moments found in video for trailer generation")
-                    except Exception as fallback_error:
-                        print(f"[ERROR] Fallback moment parsing failed: {fallback_error}")
-                        raise Exception("No suitable moments found in video for trailer generation")
-
-                trailer_s3_key = create_trailer(base_dir, video_path, clips_s3_key, clip_moments, transcript_segments)
-                print(f"Trailer created successfully: {trailer_s3_key}")
-                processing_success = True
-            except Exception as e:
-                print(f"[ERROR] Trailer generation failed: {e}")
-                raise Exception(f"Trailer generation failed: {e}")
-        else:
-            # Create individual clips
-            print("Generating individual clips...")
-            clips_created = 0
-            # Limit to first 3 clips to avoid overwhelming the system
-            for index, moment in enumerate(clip_moments[:3]):
-                if "start" in moment and "end" in moment:
-                    try:
-                        process_clip(base_dir, video_path, clips_s3_key, moment["start"], moment["end"], index, transcript_segments)
-                        clips_created += 1
+                        s3_client.download_fileobj("clipstream-ai", cookies_s3_key, tmp)
+                        cookies_path = tmp.name
+                        print(f"[DEBUG] Successfully downloaded cookies to: {cookies_path}")
                     except Exception as e:
-                        print(f"[ERROR] process_clip failed for clip {index}: {e}")
+                        print(f"[ERROR] Failed to download cookies file: {e}")
+                        raise HTTPException(status_code=400, detail="Failed to access cookies file. Please upload a fresh cookies.txt file.")
 
-            if clips_created > 0:
-                processing_success = True
-            elif not clip_moments:
-                print("[ERROR] No moments identified by AI for clip generation")
-                raise Exception("No suitable moments found in video")
+                # Download YouTube video using yt-dlp
+                try:
+                    ydl_opts = {
+                        'outtmpl': str(video_path),
+                        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4',
+                        'merge_output_format': 'mp4',
+                        'quiet': True,
+                        'noplaylist': True,
+                        'max_filesize': 600 * 1024 * 1024,  # 600MB limit
+                    }
+                    if cookies_path:
+                        ydl_opts['cookiefile'] = cookies_path
+                        print(f"[DEBUG] Using cookies file for YouTube download")
+                    else:
+                        print("[WARNING] No cookies file provided for YouTube download")
 
-        # Validate processing success
-        if processing_success:
-            print(f"[Modal] Processing completed successfully for {s3_key}")
-        else:
-            print(f"[Modal] Processing failed for {s3_key} - no clips or trailer were generated")
-            raise Exception("Processing failed - no clips or trailer were generated")
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(youtube_url, download=True)
+                        duration = info.get('duration', 0)
+                        if duration > 60 * 60:  # 1 hour limit
+                            raise Exception("Video too long (max 1 hour)")
+                        print(f"[DEBUG] Successfully downloaded YouTube video: {youtube_url}")
+                except Exception as e:
+                    print(f"[ERROR] YouTube download failed: {e}")
+                    shutil.rmtree(base_dir, ignore_errors=True)
+                    raise HTTPException(status_code=400, detail=f"YouTube download failed: {e}")
+                finally:
+                    # Clean up temporary cookies file
+                    if cookies_path:
+                        try:
+                            os.remove(cookies_path)
+                            print(f"[DEBUG] Deleted temp cookies file: {cookies_path}")
+                        except Exception:
+                            pass
+                    # Clean up S3 cookies file (may fail due to permissions)
+                    if cookies_s3_key:
+                        try:
+                            s3_client.delete_object(Bucket="clipstream-ai", Key=cookies_s3_key)
+                            print(f"[DEBUG] Deleted cookies file from S3: {cookies_s3_key}")
+                        except Exception as e:
+                            print(f"[INFO] Could not delete cookies file from S3 (expected if no delete permissions): {e}")
+            elif youtube_url:
+                # YouTube URL provided but no cookies - validation error
+                print("[ERROR] YouTube URL provided but no cookies file")
+                raise HTTPException(status_code=400, detail="Cookies file is required for YouTube downloads")
+            else:
+                # Download video from S3
+                s3_client = boto3.client("s3")
+                s3_client.download_file("clipstream-ai", s3_key, str(video_path))
 
-        # Clean up temporary files after processing
-        print(f"[Modal] Cleaning up temporary files for {s3_key}")
-        if base_dir.exists():
-            shutil.rmtree(base_dir, ignore_errors=True)
+            # Perform speech transcription and content analysis
+            transcript_segments_json = self.transcribe_video(base_dir, video_path)
+            transcript_segments = json.loads(transcript_segments_json)
+
+            # Identify engaging moments using appropriate AI prompt
+            print(f"generate_trailer flag: {generate_trailer}")
+            if generate_trailer:
+                print("Using trailer-optimized prompt for moment identification...")
+                identified_moments_raw = self.identify_trailer_moments(transcript_segments)
+            else:
+                print("Using clips-optimized prompt for moment identification...")
+                identified_moments_raw = self.identify_moments(transcript_segments)
+
+            print(f"Raw identified_moments_raw: {identified_moments_raw}")
+
+            # Clean and parse JSON response from Gemini
+            cleaned_json_string = identified_moments_raw.strip()
+            if cleaned_json_string.startswith("```json"):
+                cleaned_json_string = cleaned_json_string[len("```json"):].strip()
+            if cleaned_json_string.endswith("```"):
+                cleaned_json_string = cleaned_json_string[:-len("```")].strip()
+
+            print(f"Cleaned JSON string: {cleaned_json_string}")
+
+            # Parse and validate moment data
+            try:
+                clip_moments = json.loads(cleaned_json_string)
+                print(f"Successfully parsed JSON: {clip_moments}")
+            except Exception as e:
+                print(f"[ERROR] Failed to parse Gemini output: {e}")
+                print(f"JSON string that failed: '{cleaned_json_string}'")
+                clip_moments = []
+
+            if not isinstance(clip_moments, list):
+                print("[ERROR] identified moments is not a list")
+                clip_moments = []
+
+            # Process moments based on generation type
+            processing_success = False
+
+            if generate_trailer:
+                # Create a single trailer combining multiple moments
+                print("Generating AI trailer with transitions and effects...")
+                try:
+                    if not clip_moments:
+                        print("[WARNING] No trailer moments found, falling back to regular clip moments...")
+                        # Fallback: try to get regular clip moments and use them for trailer
+                        fallback_moments_raw = self.identify_moments(transcript_segments)
+                        fallback_cleaned = fallback_moments_raw.strip()
+                        if fallback_cleaned.startswith("```json"):
+                            fallback_cleaned = fallback_cleaned[len("```json"):].strip()
+                        if fallback_cleaned.endswith("```"):
+                            fallback_cleaned = fallback_cleaned[:-len("```")].strip()
+
+                        try:
+                            fallback_moments = json.loads(fallback_cleaned)
+                            if isinstance(fallback_moments, list) and len(fallback_moments) > 0:
+                                print(f"Using fallback moments: {fallback_moments}")
+                                clip_moments = fallback_moments
+                            else:
+                                raise Exception("No suitable moments found in video for trailer generation")
+                        except Exception as fallback_error:
+                            print(f"[ERROR] Fallback moment parsing failed: {fallback_error}")
+                            raise Exception("No suitable moments found in video for trailer generation")
+
+                    trailer_s3_key = create_trailer(base_dir, video_path, clips_s3_key, clip_moments, transcript_segments)
+                    print(f"Trailer created successfully: {trailer_s3_key}")
+                    processing_success = True
+                except Exception as e:
+                    print(f"[ERROR] Trailer generation failed: {e}")
+                    raise Exception(f"Trailer generation failed: {e}")
+            else:
+                # Create individual clips
+                print("Generating individual clips...")
+                clips_created = 0
+                # Limit to first 3 clips to avoid overwhelming the system
+                for index, moment in enumerate(clip_moments[:3]):
+                    if "start" in moment and "end" in moment:
+                        try:
+                            process_clip(base_dir, video_path, clips_s3_key, moment["start"], moment["end"], index, transcript_segments)
+                            clips_created += 1
+                        except Exception as e:
+                            print(f"[ERROR] process_clip failed for clip {index}: {e}")
+
+                if clips_created > 0:
+                    processing_success = True
+                elif not clip_moments:
+                    print("[ERROR] No moments identified by AI for clip generation")
+                    raise Exception("No suitable moments found in video")
+
+            # Validate processing success
+            if processing_success:
+                print(f"[Modal] Processing completed successfully for {s3_key}")
+            else:
+                print(f"[Modal] Processing failed for {s3_key} - no clips or trailer were generated")
+                raise Exception("Processing failed - no clips or trailer were generated")
+
+            # Clean up temporary files after processing
+            print(f"[Modal] Cleaning up temporary files for {s3_key}")
+            if base_dir.exists():
+                shutil.rmtree(base_dir, ignore_errors=True)
+        
+            # Send webhook notification to frontend
+            print(f"[Modal] Sending webhook notification for successful completion: {uploaded_file_id}")
+            send_webhook_notification(uploaded_file_id, s3_key, "success")
             
-        print(f"[Modal] process_video endpoint completed for {s3_key}")
-        return {"status": "success", "message": "Video processing completed"}
+            print(f"[Modal] process_video endpoint completed for {s3_key}")
+            return {"status": "success", "message": "Video processing completed"}
+            
+        except Exception as e:
+            # Handle processing errors and send failure webhook
+            error_message = str(e)
+            print(f"[Modal] Processing failed for {s3_key}: {error_message}")
+            
+            # Clean up temporary files on error
+            if 'base_dir' in locals() and base_dir.exists():
+                shutil.rmtree(base_dir, ignore_errors=True)
+            
+            # Send error webhook notification
+            send_webhook_notification(uploaded_file_id, s3_key, "error", error_message)
+            
+            # Re-raise as HTTP exception
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Video processing failed: {error_message}"
+            )
 
 
 @app.local_entrypoint()

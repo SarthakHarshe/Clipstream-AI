@@ -53,7 +53,6 @@ export const processVideo = inngest.createFunction(
     try {
       // Step 1: Check user credits and get S3 key and YouTube/cookies info
       const {
-        userId,
         credits,
         s3Key,
         youtubeUrl,
@@ -77,7 +76,6 @@ export const processVideo = inngest.createFunction(
         });
         console.log(`[Inngest] Credits check result - userId: ${uploadedFile.user.id}, credits: ${uploadedFile.user.credits}, s3Key: ${uploadedFile.s3Key}`);
         return {
-          userId: uploadedFile.user.id,
           credits: uploadedFile.user.credits,
           s3Key: uploadedFile.s3Key,
           youtubeUrl: uploadedFile.youtubeUrl ?? null,
@@ -99,115 +97,41 @@ export const processVideo = inngest.createFunction(
           });
         });
 
-        // Call the backend endpoint to process the video
-        console.log(`[Inngest] Calling Modal backend to process video for s3Key: ${s3Key}`);
-        const response = await step.fetch(env.PROCESS_VIDEO_ENDPOINT, {
-          method: "POST",
-          body: JSON.stringify({
-            s3_key: s3Key,
-            youtube_url: youtubeUrl ?? null,
-            cookies_s3_key: cookiesPath ?? null,
-            generate_trailer: generateTrailer,
-          }),
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`,
-          },
-        });
-
-        console.log(`[Inngest] Modal backend response status: ${response.status}`);
-        
-        // Check if the backend request was successful
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[Inngest] Modal backend failed for uploadedFileId: ${uploadedFileId}, status: ${response.status}, error: ${errorText}`);
-          throw new Error(
-            `Backend processing failed: ${response.status} - ${errorText}`,
-          );
-        }
-
-        // Wait a bit for backend processing to complete and S3 to be consistent
-        console.log(`[Inngest] Modal backend completed successfully for uploadedFileId: ${uploadedFileId}`);
-        await step.run("wait-for-processing", async () => {
-          console.log(`[Inngest] Starting wait period for S3 consistency...`);
-          
-          // For trailers, wait longer for S3 eventual consistency
-          const waitTime = generateTrailer ? 15000 : 5000; // 15s for trailers, 5s for clips
-          console.log(`[Inngest] Waiting ${waitTime}ms for S3 consistency...`);
-          await new Promise((resolve) => setTimeout(resolve, waitTime));
-          console.log(`[Inngest] Wait period completed`);
-          
-        });
-
-        // Discover generated clips in S3 and create DB records
-        console.log(`[Inngest] Starting clip discovery in S3 for uploadedFileId: ${uploadedFileId}`);
-        const { clipsFound } = await step.run(
-          "create-clips-in-db",
-          async () => {
-            console.log(`[Inngest] Discovering clips in S3 folder...`);
-            
-            const folderPrefix = s3Key.split("/")[0]!;
-            const allKeys = await listS3ObjectsByPrefix(folderPrefix);
-            console.log(
-              `[Inngest] Found ${allKeys.length} files in S3 folder: ${allKeys.join(", ")}`,
-            );
-
-            // Filter out the original video file and only include actual clips/trailers
-            const clipKeys = allKeys.filter(
-              (key): key is string =>
-                key != undefined &&
-                !key.endsWith("original.mp4") &&
-                (key.endsWith(".mp4") ||
-                  key.includes("clip_") ||
-                  key.includes("trailer")),
-            );
-            console.log(`[Inngest] Filtered clip keys: ${clipKeys.join(", ")}`);
-
-            // Only create DB records if we actually found clips
-            if (clipKeys.length > 0) {
-              console.log(`[Inngest] Creating ${clipKeys.length} clip records in database`);
-              await db.clip.createMany({
-                data: clipKeys.map((clipKey) => ({
-                  s3Key: clipKey,
-                  uploadedFileId,
-                  userId,
-                  type: generateTrailer ? "trailer" : "clip",
-                  title: generateTrailer ? "AI Generated Trailer" : null,
-                })),
-              });
-            } else {
-              // If no clips were found, this indicates a processing failure
-              console.error(`[Inngest] No clips found for uploadedFileId: ${uploadedFileId}`);
-              throw new Error("No clips were generated during processing");
-            }
-
-            return { clipsFound: clipKeys.length };
-          },
-        );
-
-        // Deduct credits only if clips were successfully created
-        console.log(`[Inngest] Deducting credits for uploadedFileId: ${uploadedFileId}, clipsFound: ${clipsFound}`);
-        await step.run("deduct-credits", async () => {
-          
-          if (clipsFound > 0) {
-            await db.user.update({
-              where: { id: userId },
-              data: {
-                credits: { decrement: creditsUsed },
-              },
-            });
-          }
-        });
-
-        // Update file status to 'processed' only if everything succeeded
-        console.log(`[Inngest] Setting final status to processed for uploadedFileId: ${uploadedFileId}`);
-        await step.run("set-status-processed", async () => {
-          
-          await db.uploadedFile.update({
-            where: { id: uploadedFileId },
-            data: { status: "processed" },
+        // Call the backend endpoint to process the video asynchronously
+        console.log(`[Inngest] Initiating Modal backend processing for s3Key: ${s3Key}`);
+        await step.run("initiate-modal-processing", async () => {
+          const response = await fetch(env.PROCESS_VIDEO_ENDPOINT, {
+            method: "POST",
+            body: JSON.stringify({
+              s3_key: s3Key,
+              youtube_url: youtubeUrl ?? null,
+              cookies_s3_key: cookiesPath ?? null,
+              generate_trailer: generateTrailer,
+              uploaded_file_id: uploadedFileId, // Pass the uploadedFileId for webhook callback
+            }),
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${env.PROCESS_VIDEO_ENDPOINT_AUTH}`,
+            },
           });
+
+          console.log(`[Inngest] Modal backend initiation response status: ${response.status}`);
+          
+          // Check if the backend request was successfully initiated
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Inngest] Modal backend failed to start for uploadedFileId: ${uploadedFileId}, status: ${response.status}, error: ${errorText}`);
+            throw new Error(
+              `Backend processing initiation failed: ${response.status} - ${errorText}`,
+            );
+          }
+
+          console.log(`[Inngest] Modal backend processing initiated successfully for uploadedFileId: ${uploadedFileId}`);
+          return { initiated: true };
         });
+
+        // The processing is now asynchronous - the webhook will handle completion
+        console.log(`[Inngest] Video processing initiated for uploadedFileId: ${uploadedFileId}. Waiting for webhook completion.`);
       } else {
         // If no credits, set file status to 'no credits'
         await step.run("set-status-no-credits", async () => {
@@ -232,6 +156,142 @@ export const processVideo = inngest.createFunction(
       });
     }
   },
+);
+
+/**
+ * Inngest Function: processVideoComplete
+ * --------------------------------------
+ * This function handles the completion of video processing from Modal.
+ * It's triggered by webhook events and completes the database updates.
+ */
+export const processVideoComplete = inngest.createFunction(
+  {
+    id: "process-video-complete",
+    retries: 2,
+  },
+  { event: "process-video-complete" },
+  async ({ event, step }) => {
+    const { uploadedFileId, s3Key, status, errorMessage } = event.data as {
+      uploadedFileId: string;
+      s3Key: string;
+      status: "success" | "error";
+      errorMessage?: string;
+    };
+
+    console.log(`[Inngest] Processing completion for uploadedFileId: ${uploadedFileId}, status: ${status}`);
+
+    try {
+      if (status === "success") {
+        // Get user info and file details
+        const { userId, generateTrailer, creditsUsed } = await step.run("get-file-info", async () => {
+          const uploadedFile = await db.uploadedFile.findUniqueOrThrow({
+            where: { id: uploadedFileId },
+            select: {
+              user: { select: { id: true } },
+              generateTrailer: true,
+              creditsUsed: true,
+            },
+          });
+          return {
+            userId: uploadedFile.user.id,
+            generateTrailer: uploadedFile.generateTrailer,
+            creditsUsed: uploadedFile.creditsUsed,
+          };
+        });
+
+        // Wait a bit for S3 consistency
+        await step.run("wait-for-s3-consistency", async () => {
+          const waitTime = generateTrailer ? 15000 : 5000;
+          console.log(`[Inngest] Waiting ${waitTime}ms for S3 consistency...`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+        });
+
+        // Discover and create clips in database
+        const { clipsFound } = await step.run("create-clips-in-db", async () => {
+          console.log(`[Inngest] Discovering clips in S3 folder...`);
+          
+          const folderPrefix = s3Key.split("/")[0]!;
+          const allKeys = await listS3ObjectsByPrefix(folderPrefix);
+          console.log(`[Inngest] Found ${allKeys.length} files in S3 folder: ${allKeys.join(", ")}`);
+
+          // Filter out the original video file and only include actual clips/trailers
+          const clipKeys = allKeys.filter(
+            (key): key is string =>
+              key != undefined &&
+              !key.endsWith("original.mp4") &&
+              (key.endsWith(".mp4") ||
+                key.includes("clip_") ||
+                key.includes("trailer")),
+          );
+          console.log(`[Inngest] Filtered clip keys: ${clipKeys.join(", ")}`);
+
+          // Only create DB records if we actually found clips
+          if (clipKeys.length > 0) {
+            console.log(`[Inngest] Creating ${clipKeys.length} clip records in database`);
+            await db.clip.createMany({
+              data: clipKeys.map((clipKey) => ({
+                s3Key: clipKey,
+                uploadedFileId,
+                userId,
+                type: generateTrailer ? "trailer" : "clip",
+                title: generateTrailer ? "AI Generated Trailer" : null,
+              })),
+            });
+          } else {
+            console.error(`[Inngest] No clips found for uploadedFileId: ${uploadedFileId}`);
+            throw new Error("No clips were generated during processing");
+          }
+
+          return { clipsFound: clipKeys.length };
+        });
+
+        // Deduct credits
+        await step.run("deduct-credits", async () => {
+          if (clipsFound > 0) {
+            await db.user.update({
+              where: { id: userId },
+              data: {
+                credits: { decrement: creditsUsed },
+              },
+            });
+          }
+        });
+
+        // Set status to processed
+        await step.run("set-status-processed", async () => {
+          await db.uploadedFile.update({
+            where: { id: uploadedFileId },
+            data: { status: "processed" },
+          });
+        });
+
+        console.log(`[Inngest] Successfully processed uploadedFileId: ${uploadedFileId}`);
+      } else {
+        // Handle error case
+        await step.run("set-status-failed", async () => {
+          await db.uploadedFile.update({
+            where: { id: uploadedFileId },
+            data: {
+              status: "failed",
+              displayName: `Failed: ${errorMessage ?? "Unknown error from Modal"}`,
+            },
+          });
+        });
+        console.error(`[Inngest] Processing failed for uploadedFileId: ${uploadedFileId}: ${errorMessage}`);
+      }
+    } catch (error) {
+      console.error(`[Inngest] Error in processVideoComplete for uploadedFileId: ${uploadedFileId}:`, error);
+      await step.run("set-status-failed-fallback", async () => {
+        await db.uploadedFile.update({
+          where: { id: uploadedFileId },
+          data: {
+            status: "failed",
+            displayName: `Failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        });
+      });
+    }
+  }
 );
 
 /**
