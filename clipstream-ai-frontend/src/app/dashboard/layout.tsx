@@ -104,7 +104,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Dashboard content */}
       <div className="relative z-20 min-h-screen">
         <NavHeader credits={user.credits} email={user.email} />
-        <main className="container mx-auto px-4 py-8">{children}</main>
+        <main className="container mx-auto px-4 py-4 sm:py-6 pt-16 sm:pt-20">{children}</main>
         <Toaster />
       </div>
     </>

@@ -61,7 +61,7 @@ function LiquidGlassHero() {
   return (
     <motion.div
       ref={containerRef}
-      className="relative flex min-h-screen items-center justify-center overflow-hidden pt-16"
+      className="relative flex min-h-screen items-center justify-center overflow-hidden pt-24 md:pt-16"
       style={{ y, opacity }}
     >
       {/* Aurora Background - Creates dynamic color gradients */}
@@ -79,7 +79,7 @@ function LiquidGlassHero() {
 
       {/* Main Content Container */}
       <div className="relative z-20 mx-auto max-w-7xl px-4">
-        <div className="grid min-h-[80vh] items-center gap-8 lg:grid-cols-2 lg:gap-16">
+        <div className="grid min-h-[80vh] items-center gap-8 md:grid-cols-1 lg:grid-cols-2 lg:gap-16">
           {/* Left Column - Text Content */}
           <div className="flex flex-col justify-center text-center lg:pr-8 lg:text-left">
             {/* Welcome Badge */}
@@ -103,7 +103,7 @@ function LiquidGlassHero() {
                 delay: 0.2,
                 ease: [0.25, 0.46, 0.45, 0.94],
               }}
-              className="mb-8 text-5xl font-bold tracking-tight text-white md:text-6xl lg:text-7xl"
+              className="mb-8 text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl lg:text-7xl"
             >
               <span className="block">Transform Your</span>
               <span className="block bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
@@ -116,7 +116,7 @@ function LiquidGlassHero() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 0.4 }}
-              className="mx-auto mb-12 max-w-2xl text-xl leading-relaxed text-white/70 lg:mx-0"
+              className="mx-auto mb-12 max-w-2xl text-lg leading-relaxed text-white/70 sm:text-xl lg:mx-0"
             >
               AI-powered platform that automatically converts your long-form
               content into viral clips with intelligent processing and seamless
@@ -131,14 +131,14 @@ function LiquidGlassHero() {
               className="flex flex-col justify-center gap-4 sm:flex-row lg:justify-start"
             >
               <Link href="/signup">
-                <Button className="rounded-full bg-white px-8 py-4 text-lg font-semibold text-black shadow-lg transition-all duration-300 hover:bg-gray-100 hover:shadow-xl">
+                <Button className="w-full sm:w-auto rounded-full bg-white px-6 py-3 text-base font-semibold text-black shadow-lg transition-all duration-300 hover:bg-gray-100 hover:shadow-xl sm:px-8 sm:py-4 sm:text-lg">
                   Start Creating
                 </Button>
               </Link>
               <Link href="/signup">
                 <Button
                   variant="outline"
-                  className="rounded-full border-white/30 px-8 py-4 text-lg font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:bg-white/10"
+                  className="w-full sm:w-auto rounded-full border-white/30 px-6 py-3 text-base font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:bg-white/10 sm:px-8 sm:py-4 sm:text-lg"
                 >
                   Try It Now - Sign Up Free
                 </Button>
@@ -146,8 +146,8 @@ function LiquidGlassHero() {
             </motion.div>
           </div>
 
-          {/* Right Column - Hero Animation */}
-          <div className="flex items-center justify-center lg:justify-start lg:pl-8">
+          {/* Right Column - Hero Animation (Hidden on mobile for performance) */}
+          <div className="hidden md:flex items-center justify-center lg:justify-start lg:pl-8">
             <motion.div
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
@@ -280,7 +280,7 @@ function CTASection() {
           </h2>
 
           {/* Section Description */}
-          <p className="mx-auto mb-12 max-w-2xl text-xl text-white/70">
+          <p className="mx-auto mb-12 max-w-2xl text-lg text-white/70 sm:text-xl">
             Join thousands of creators who are already using ClipStream AI to
             create engaging content and grow their audience.
           </p>
@@ -288,8 +288,9 @@ function CTASection() {
           {/* Primary CTA Button */}
           <div className="flex flex-col justify-center gap-4 sm:flex-row">
             <Link href="/signup">
-              <Button className="rounded-full bg-gradient-to-r from-purple-600 to-blue-600 px-12 py-6 text-xl font-semibold text-white shadow-2xl transition-all duration-300 hover:scale-105 hover:from-purple-700 hover:to-blue-700 hover:shadow-purple-500/25">
-                Create Account & Get Started Today
+              <Button className="w-full sm:w-auto rounded-full bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-4 text-base font-semibold text-white shadow-2xl transition-all duration-300 hover:scale-105 hover:from-purple-700 hover:to-blue-700 hover:shadow-purple-500/25 sm:px-8 sm:py-5 sm:text-lg md:px-12 md:py-6 md:text-xl">
+                <span className="sm:hidden">Get Started Today</span>
+                <span className="hidden sm:inline">Create Account & Get Started Today</span>
               </Button>
             </Link>
           </div>

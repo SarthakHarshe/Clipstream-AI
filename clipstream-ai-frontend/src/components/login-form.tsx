@@ -152,17 +152,17 @@ export function LoginForm({
       {/* Login Card Container */}
       <Card className="glass-card border-white/10 bg-white/5">
         {/* Card Header */}
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-white">
+        <CardHeader className="space-y-1 p-4 sm:p-6">
+          <CardTitle className="text-xl font-bold text-white sm:text-2xl">
             Welcome back
           </CardTitle>
-          <CardDescription className="text-white/60">
+          <CardDescription className="text-sm text-white/60 sm:text-base">
             Enter your credentials to access your account
           </CardDescription>
         </CardHeader>
 
         {/* Card Content */}
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Email Input Field */}
             <div className="space-y-2">

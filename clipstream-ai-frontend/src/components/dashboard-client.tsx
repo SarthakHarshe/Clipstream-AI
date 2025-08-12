@@ -405,10 +405,10 @@ export function DashboardClient({
   };
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col space-y-6 px-4 py-8">
+    <div className="mx-auto flex max-w-5xl flex-col space-y-4 px-4 py-4">
       {/* Dashboard Navigation - Glass morphism tabs */}
       <motion.div
-        className="mt-16 mb-6 flex justify-center"
+        className="mt-8 mb-4 flex justify-center"
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -443,7 +443,7 @@ export function DashboardClient({
 
       {/* Dashboard Header - Welcome section with animations */}
       <motion.div
-        className="mb-12 space-y-4 text-center"
+        className="mb-8 space-y-4 text-center"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
@@ -474,32 +474,35 @@ export function DashboardClient({
       <Tabs defaultValue="upload" className="mx-auto w-full max-w-4xl">
         {/* Tab Navigation */}
         <motion.div
-          className="mb-8 flex justify-center"
+          className="mb-6 flex justify-center px-4 overflow-x-auto scrollbar-hide"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.6 }}
         >
-          <TabsList className="glass-tabs">
+          <TabsList className="glass-tabs shrink-0">
             <TabsTrigger
               value="upload"
               className="glass-tab text-white data-[state=active]:bg-white/10"
             >
-              <Upload className="mr-2 h-4 w-4" />
-              Upload Content
+              <Upload className="mr-1 h-3 w-3 md:mr-2 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Upload Content</span>
+              <span className="sm:hidden">Upload</span>
             </TabsTrigger>
             <TabsTrigger
               value="youtube"
               className="glass-tab text-white data-[state=active]:bg-white/10"
             >
-              <Youtube className="mr-2 h-4 w-4" />
-              YouTube Import
+              <Youtube className="mr-1 h-3 w-3 md:mr-2 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">YouTube Import</span>
+              <span className="sm:hidden">YouTube</span>
             </TabsTrigger>
             <TabsTrigger
               value="my-clips"
               className="glass-tab text-white data-[state=active]:bg-white/10"
             >
-              <Film className="mr-2 h-4 w-4" />
-              My Clips
+              <Film className="mr-1 h-3 w-3 md:mr-2 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">My Clips</span>
+              <span className="sm:hidden">Clips</span>
             </TabsTrigger>
           </TabsList>
         </motion.div>

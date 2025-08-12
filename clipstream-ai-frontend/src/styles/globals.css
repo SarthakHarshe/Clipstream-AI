@@ -479,6 +479,13 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 4px;
+  /* Mobile responsive sizing - optimal readability scale */
+  @media (max-width: 767px) {
+    border-radius: 15px;
+    padding: 4px;
+    transform: scale(0.95);
+    transform-origin: center;
+  }
 }
 
 .glass-tab {
@@ -486,12 +493,35 @@
   padding: 8px 16px;
   transition: all 0.3s ease;
   color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  /* Mobile responsive sizing */
+  @media (max-width: 767px) {
+    border-radius: 11px;
+    padding: 8px 14px;
+    font-size: 14px;
+  }
+  /* Medium screens */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
 }
 
 .glass-tab[data-state="active"] {
   background: rgba(255, 255, 255, 0.1);
   color: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Utility classes for mobile responsiveness */
+.scrollbar-hide {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  /* Hide scrollbar for IE, Edge and Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Enhanced Table */

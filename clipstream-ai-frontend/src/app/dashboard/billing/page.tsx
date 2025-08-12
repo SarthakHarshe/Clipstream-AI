@@ -121,40 +121,51 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 
       <div className={plan.isPopular ? "card-content h-full" : "h-full"}>
         <Card className="h-full border-0 bg-transparent shadow-none">
-          <CardHeader className="space-y-4 pb-6">
+                    <CardHeader className="space-y-4 pb-6 p-4 sm:p-6">
             <motion.div
-              className={`h-16 w-16 rounded-2xl bg-gradient-to-br ${plan.gradient} mx-auto flex items-center justify-center`}
+              className={`h-12 w-12 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br ${plan.gradient} mx-auto flex items-center justify-center`}
               whileHover={{ rotate: 10 }}
               transition={{ duration: 0.3 }}
             >
-              <span className="text-2xl">{plan.icon}</span>
+              <span className="text-xl sm:text-2xl">{plan.icon}</span>
             </motion.div>
 
-            <div className="space-y-2 text-center">
-              <CardTitle className="text-2xl font-bold text-white">
+            <div className="text-center">
+              <motion.h3
+                className="text-xl font-bold text-white sm:text-2xl"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
                 {plan.title}
-              </CardTitle>
-              <div className="space-y-1">
-                <div className="text-4xl font-bold text-white">
+              </motion.h3>
+              <div className="mt-2 flex items-center justify-center space-x-2">
+                <motion.span
+                  className="text-2xl font-bold text-white sm:text-3xl"
+                  initial={{ scale: 0.8 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.3, type: "spring" }}
+                >
                   {plan.price}
-                </div>
+                </motion.span>
                 {plan.savePercentage && (
-                  <motion.div
-                    className="inline-block rounded-full bg-gradient-to-r from-green-500 to-emerald-500 px-3 py-1 text-sm font-medium text-white"
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
+                  <motion.span
+                    className="rounded-lg bg-green-500/20 px-2 py-1 text-xs font-medium text-green-400"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 }}
                   >
                     {plan.savePercentage}
-                  </motion.div>
+                  </motion.span>
                 )}
               </div>
-              <CardDescription className="text-base text-white/60">
+              <CardDescription className="text-sm text-white/60 sm:text-base">
                 {plan.description}
               </CardDescription>
             </div>
           </CardHeader>
 
-          <CardContent className="flex-1 space-y-4">
+          <CardContent className="flex-1 space-y-4 p-4 sm:p-6">
             <ul className="space-y-3">
               {plan.features.map((feature, index) => (
                 <motion.li
@@ -173,7 +184,7 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
             </ul>
           </CardContent>
 
-          <CardFooter className="pt-6">
+          <CardFooter className="pt-6 p-4 sm:p-6">
             <form
               action={() => createCheckoutSession(plan.priceId)}
               className="w-full"
@@ -185,7 +196,7 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
                 <Button
                   type="submit"
                   className={cn(
-                    "w-full py-3 text-base font-semibold",
+                    "w-full py-3 text-sm sm:text-base font-semibold",
                     plan.isPopular
                       ? "primary-glass-button border-0"
                       : "glass-button border-white/20 text-white hover:bg-white/10",
@@ -206,11 +217,11 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 // Main billing page component
 export default function BillingPage() {
   return (
-    <div className="min-h-screen pt-24">
-      <div className="container mx-auto space-y-12 px-4">
+    <div className="min-h-screen pt-12 sm:pt-16">
+      <div className="container mx-auto space-y-6 sm:space-y-8 px-4">
         {/* Header Section */}
         <motion.div
-          className="space-y-6 text-center"
+          className="space-y-4 text-center"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
@@ -224,7 +235,7 @@ export default function BillingPage() {
               variant="outline"
               size="sm"
               asChild
-              className="glass-button mb-6 border-white/20 text-white"
+              className="glass-button mb-4 border-white/20 text-white"
             >
               <Link href="/dashboard" className="flex items-center space-x-2">
                 <ArrowLeftIcon className="h-4 w-4" />
@@ -259,7 +270,7 @@ export default function BillingPage() {
 
         {/* Pricing Cards */}
         <motion.div
-          className="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-3"
+          className="mx-auto grid max-w-6xl grid-cols-1 gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.6 }}
@@ -300,58 +311,53 @@ export default function BillingPage() {
                 How Credits Work
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-blue-500">
-                      <span className="text-sm text-white">1</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-white">Simple Pricing</h4>
-                      <p className="text-sm text-white/60">
-                        1 credit = 1 minute of video processing
-                      </p>
-                    </div>
+            <CardContent className="p-4 sm:p-6">
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-blue-500">
+                    <span className="text-sm text-white font-semibold">1</span>
                   </div>
-                  <div className="flex items-start space-x-3">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500">
-                      <span className="text-sm text-white">2</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-white">
-                        Smart Generation
-                      </h4>
-                      <p className="text-sm text-white/60">
-                        AI creates ~1 clip per 5 minutes of content
-                      </p>
-                    </div>
+                  <div>
+                    <h4 className="font-medium text-white mb-2">Simple Pricing</h4>
+                    <p className="text-sm text-white/60">
+                      1 credit = 1 minute of video processing
+                    </p>
                   </div>
                 </div>
-                <div className="space-y-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-red-500">
-                      <span className="text-sm text-white">3</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-white">Never Expire</h4>
-                      <p className="text-sm text-white/60">
-                        Credits never expire - use them anytime
-                      </p>
-                    </div>
+                
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-500">
+                    <span className="text-sm text-white font-semibold">2</span>
                   </div>
-                  <div className="flex items-start space-x-3">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-green-500">
-                      <span className="text-sm text-white">4</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-white">
-                        One-Time Purchase
-                      </h4>
-                      <p className="text-sm text-white/60">
-                        No subscriptions - just buy what you need
-                      </p>
-                    </div>
+                  <div>
+                    <h4 className="font-medium text-white mb-2">Smart Generation</h4>
+                    <p className="text-sm text-white/60">
+                      AI creates ~1 clip per 5 minutes of content
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-red-500">
+                    <span className="text-sm text-white font-semibold">3</span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-white mb-2">Never Expire</h4>
+                    <p className="text-sm text-white/60">
+                      Credits never expire - use them anytime
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-green-500">
+                    <span className="text-sm text-white font-semibold">4</span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-white mb-2">One-Time Purchase</h4>
+                    <p className="text-sm text-white/60">
+                      No subscriptions - just buy what you need
+                    </p>
                   </div>
                 </div>
               </div>

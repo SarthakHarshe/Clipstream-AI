@@ -52,7 +52,7 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
             whileTap={{ scale: 0.98 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
           >
-            <Link href="/dashboard" className="flex items-center space-x-3">
+            <Link href="/dashboard" className="flex items-center space-x-2 md:space-x-3">
               <motion.div
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-blue-600"
                 whileHover={{ rotate: 180 }}
@@ -61,10 +61,10 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
                 <Video className="h-4 w-4 text-white" />
               </motion.div>
               <div className="flex flex-col">
-                <span className="text-lg font-semibold tracking-tight text-white">
+                <span className="text-base md:text-lg font-semibold tracking-tight text-white">
                   ClipstreamAI
                 </span>
-                <span className="text-xs text-white/50">AI-Powered Clips</span>
+                <span className="text-xs text-white/50 hidden sm:block">AI-Powered Clips</span>
               </div>
             </Link>
           </motion.div>
@@ -77,9 +77,9 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
               whileHover={{ scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
-              <div className="card-content px-4 py-2">
+              <div className="card-content px-3 py-2 md:px-4">
                 <motion.div
-                  className="flex items-center space-x-2"
+                  className="flex items-center space-x-1.5 md:space-x-2"
                   key={credits}
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
@@ -89,13 +89,14 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
                   <span className="text-sm font-medium text-white">
                     {credits}
                   </span>
-                  <span className="text-xs text-white/60">credits</span>
+                  <span className="text-xs text-white/60 hidden sm:inline">credits</span>
                 </motion.div>
               </div>
             </motion.div>
 
-            {/* Buy credits button */}
+            {/* Buy credits button - Hidden on mobile, visible on md and up */}
             <motion.div
+              className="hidden md:block"
               whileHover={{ scale: 1.02, y: -1 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -171,9 +172,31 @@ const NavHeader = ({ credits, email }: { credits: number; email: string }) => {
 
                   <DropdownMenuSeparator className="my-2 bg-white/10" />
 
+                  {/* Buy Credits option - Visible on mobile only */}
                   <DropdownMenuItem
                     asChild
-                    className="glass-button m-1 rounded-lg border-0"
+                    className="glass-button m-1 rounded-lg border-0 md:hidden"
+                  >
+                    <Link
+                      href="/dashboard/billing"
+                      className="flex cursor-pointer items-center space-x-3 p-3"
+                    >
+                      <CreditCard className="h-5 w-5" />
+                      <div className="flex flex-col">
+                        <span className="text-sm text-white">
+                          Buy Credits
+                        </span>
+                        <span className="text-xs text-white/60">
+                          Purchase more credits
+                        </span>
+                      </div>
+                    </Link>
+                  </DropdownMenuItem>
+
+                  {/* Billing & Credits option - Visible on desktop only */}
+                  <DropdownMenuItem
+                    asChild
+                    className="glass-button m-1 rounded-lg border-0 hidden md:flex"
                   >
                     <Link
                       href="/dashboard/billing"
