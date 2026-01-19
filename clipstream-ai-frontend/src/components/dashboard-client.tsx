@@ -236,7 +236,7 @@ export function DashboardClient({ uploadedFiles, clips }: DashboardClientProps) 
                   {!isYoutubeMode ? (
                     <Dropzone onDrop={handleDrop} accept={{ "video/mp4": [".mp4"] }} maxSize={500 * 1024 * 1024} disabled={uploading || files.length > 0} maxFiles={1}>
                       {(dropzone: DropzoneState) => (
-                        <div {...dropzone.getRootProps()} className="border border-dashed border-border h-full min-h-[300px] w-full flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all group">
+                        <div {...dropzone.getRootProps()} className="border border-dashed border-border h-full min-h-[300px] w-full flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-white/[0.02] transition-all group">
                           <input {...dropzone.getInputProps()} />
                           {files.length > 0 ? (
                             <div className="text-center">
