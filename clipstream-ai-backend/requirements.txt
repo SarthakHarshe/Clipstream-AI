@@ -1,3 +1,4 @@
+modal
 tqdm
 torch
 opencv-python
@@ -18,4 +19,4 @@ pysubs2
 boto3
 fastapi[standard]
 whisperx
-yt-dlp
+yt-dlp>=2024.08.06

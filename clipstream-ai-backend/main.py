@@ -30,7 +30,7 @@ import uuid
 # Third-party imports
 import boto3
 import cv2
-import ffmpegcv
+# import ffmpegcv - Moved to local scope checking
 import modal
 import numpy as np
 import pysubs2
@@ -41,7 +41,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from google import genai
 from pydantic import BaseModel
 from tqdm import tqdm
-import whisperx
+# import whisperx - Moved to local scope for portability
 
 
 def send_webhook_notification(uploaded_file_id: str, s3_key: str, status: str, error_message: str = None):
@@ -221,6 +221,7 @@ def create_vertical_video(tracks, scores, pyframes_path, pyavi_path,
 
         # Initialize video writer on first frame
         if vout is None:
+            import ffmpegcv
             vout = ffmpegcv.VideoWriterNV(
                 file=temp_video_path,
                 codec=None,
@@ -919,6 +920,7 @@ class clipstream_ai:
 
         # Load WhisperX model for speech transcription
         # This model provides high-accuracy transcription with word-level timestamps
+        import whisperx
         self.whisperx_model = whisperx.load_model("large-v2", device="cuda", compute_type="float16")
 
         # Load alignment model for precise word-level timing
@@ -962,6 +964,7 @@ class clipstream_ai:
         start_time = time.time()
 
         # Load audio and transcribe with WhisperX
+        import whisperx
         audio = whisperx.load_audio(str(audio_path))
         result = self.whisperx_model.transcribe(audio, batch_size=16)
 
@@ -1215,6 +1218,16 @@ class clipstream_ai:
                         'quiet': True,
                         'noplaylist': True,
                         'max_filesize': 600 * 1024 * 1024,  # 600MB limit
+                        # Anti-blocking measures
+                        'extractor_args': {
+                            'youtube': {
+                                'player_client': ['android', 'ios'],
+                                'player_skip': ['webpage', 'configs', 'js'], 
+                            }
+                        },
+                        'http_headers': {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                        },
                     }
                     if cookies_path:
                         ydl_opts['cookiefile'] = cookies_path
