@@ -11,7 +11,7 @@
     var(--font-space), ui-sans-serif, system-ui, sans-serif;
 
   /* Swiss Dark Palette */
-  --color-swiss-black: #0A0A0A;
+  --color-swiss-black: #252525;
   /* Dark Grey as requested */
   --color-swiss-gray: #1f1f1f;
   --color-signal-orange: #FF4D00;
@@ -60,15 +60,15 @@
   /* Swiss Style = Sharp Edges */
 
   /* Swiss Dark Palette */
-  --background: #050505;
+  --background: #252525;
   /* Pitch Black */
   --foreground: #f0f0f0;
   /* Off White */
 
-  --card: #050505;
+  --card: #252525;
   --card-foreground: #f0f0f0;
 
-  --popover: #050505;
+  --popover: #252525;
   --popover-foreground: #f0f0f0;
 
   --primary: #FF4D00;
@@ -101,7 +101,7 @@
 }
 
 .dark {
-  --background: #141414;
+  --background: #252525;
   --foreground: #f0f0f0;
   --card: #1A1A1A;
   --card-foreground: #f0f0f0;
