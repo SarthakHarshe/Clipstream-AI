@@ -17,9 +17,7 @@ export default function HomePage() {
             <span className="font-display font-bold text-xl tracking-tighter uppercase">Clipstream.</span>
           </div>
           <div className="col-span-0 md:col-span-6 hidden md:flex items-center justify-center gap-8">
-            <Link href="#features" className="text-xs uppercase tracking-widest hover:text-primary transition-colors font-medium">Features</Link>
-            <Link href="#how-it-works" className="text-xs uppercase tracking-widest hover:text-primary transition-colors font-medium">Process</Link>
-            <Link href="#pricing" className="text-xs uppercase tracking-widest hover:text-primary transition-colors font-medium">Pricing</Link>
+            {/* Nav links removed as requested */}
           </div>
           <div className="col-span-4 md:col-span-3 flex justify-end gap-4 items-center">
             <Link href="/login" className="text-xs uppercase tracking-widest font-bold hover:text-primary transition-colors">Sign In</Link>
@@ -53,7 +51,7 @@ export default function HomePage() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="text-lg md:text-xl text-muted-foreground max-w-2xl leading-relaxed mb-10"
             >
-              The enterprise-grade AI engine that identifies viral moments, reframes for vertical, and generates captions automatically.
+              The advanced AI engine that identifies viral moments, reframes for vertical, and generates captions automatically.
             </motion.p>
 
             <motion.div
@@ -136,7 +134,7 @@ export default function HomePage() {
               <Globe className="w-8 h-8 text-white mb-4" />
               <div>
                 <h3 className="font-display text-xl uppercase font-bold mb-2">Auto-Captioning</h3>
-                <p className="text-xs text-muted-foreground">High accuracy transcription in 30+ languages.</p> {/* Removed "97%" */}
+                <p className="text-xs text-muted-foreground">High accuracy transcription in English.</p>
               </div>
             </div>
 
@@ -144,8 +142,8 @@ export default function HomePage() {
             <div className="border border-white/10 bg-black p-8 flex flex-col justify-between group hover:border-white/20 transition-colors">
               <ShieldCheck className="w-8 h-8 text-white mb-4" />
               <div>
-                <h3 className="font-display text-xl uppercase font-bold mb-2">Copyright Safe</h3>
-                <p className="text-xs text-muted-foreground">Royalty-free music library and asset checking.</p>
+                <h3 className="font-display text-xl uppercase font-bold mb-2">Secure Processing</h3>
+                <p className="text-xs text-muted-foreground">Your content is processed privately and deleted after use.</p>
               </div>
             </div>
           </div>
@@ -160,7 +158,7 @@ export default function HomePage() {
               Ready to Create?
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto mb-12 text-lg">
-              Join the new standard of content creation. Produce a month's worth of content in an afternoon.
+              Join now and start creating.
             </p>
             <Link href="/signup">
               <Button size="lg" className="h-16 px-12 text-lg rounded-none uppercase font-bold tracking-widest bg-white text-black hover:bg-white/90">
@@ -186,8 +184,6 @@ export default function HomePage() {
           <div className="col-span-2 md:col-span-2">
             <h4 className="text-[10px] uppercase tracking-widest font-bold mb-4 text-white">Product</h4>
             <ul className="space-y-2 text-xs text-muted-foreground">
-              <li><Link href="#features" className="hover:text-primary">Features</Link></li>
-              <li><Link href="#pricing" className="hover:text-primary">Pricing</Link></li>
               <li><Link href="/login" className="hover:text-primary">Login</Link></li>
             </ul>
           </div>
