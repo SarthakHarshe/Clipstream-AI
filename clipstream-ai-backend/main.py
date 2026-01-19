@@ -1213,20 +1213,19 @@ class clipstream_ai:
                 try:
                     ydl_opts = {
                         'outtmpl': str(video_path),
-                        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4',
+                        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                         'merge_output_format': 'mp4',
-                        'quiet': True,
+                        'quiet': False,  # Enable output for debugging
+                        'verbose': True,  # Verbose logging to help diagnose issues
                         'noplaylist': True,
                         'max_filesize': 600 * 1024 * 1024,  # 600MB limit
-                        # Anti-blocking measures
-                        'extractor_args': {
-                            'youtube': {
-                                'player_client': ['android', 'ios'],
-                                'player_skip': ['webpage', 'configs', 'js'], 
-                            }
-                        },
+                        # NOTE: Do NOT use player_client overrides (android/ios) when using cookies
+                        # as those clients don't support cookie authentication. Let yt-dlp use
+                        # the default web client which properly handles cookies.
                         'http_headers': {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                            'Accept-Language': 'en-us,en;q=0.5',
                         },
                     }
                     if cookies_path:
