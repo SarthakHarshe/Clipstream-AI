@@ -149,8 +149,7 @@ export function DashboardClient({ uploadedFiles, clips }: DashboardClientProps) 
       <aside className="w-16 md:w-64 border-r border-border bg-background flex flex-col justify-between hidden md:flex fixed h-full z-10">
         <div>
           <div className="p-6 border-b border-border">
-            <span className="font-display font-bold text-xl uppercase tracking-tighter hidden md:block">Clipstream.</span>
-            <span className="font-display font-bold text-xl md:hidden">C.</span>
+            {/* Logo/branding removed for cleaner sidebar */}
           </div>
           <nav className="flex flex-col">
             <NavItem
@@ -237,7 +236,7 @@ export function DashboardClient({ uploadedFiles, clips }: DashboardClientProps) 
                   {!isYoutubeMode ? (
                     <Dropzone onDrop={handleDrop} accept={{ "video/mp4": [".mp4"] }} maxSize={500 * 1024 * 1024} disabled={uploading || files.length > 0} maxFiles={1}>
                       {(dropzone: DropzoneState) => (
-                        <div {...dropzone.getRootProps()} className="border border-dashed border-border h-full min-h-[300px] w-full flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-white/5 transition-all group">
+                        <div {...dropzone.getRootProps()} className="border border-dashed border-border h-full min-h-[300px] w-full flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all group">
                           <input {...dropzone.getInputProps()} />
                           {files.length > 0 ? (
                             <div className="text-center">

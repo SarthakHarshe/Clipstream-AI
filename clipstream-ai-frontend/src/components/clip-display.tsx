@@ -56,7 +56,7 @@ function ClipCard({ clip }: { clip: ClipWithUploadedFile }) {
             src={playUrl}
             controls
             preload="metadata"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain bg-black"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -74,7 +74,7 @@ function ClipCard({ clip }: { clip: ClipWithUploadedFile }) {
 
       <div className="p-4 space-y-4">
         <h4 className="truncate font-display text-sm font-bold uppercase tracking-tight text-foreground">
-          {clip.title || "Untitled Clip"}
+          {clip.type === "trailer" ? "AI Trailer" : `Clip ${clip.title ? `- ${clip.title}` : ""}`}
         </h4>
 
         <div className="flex items-center justify-between border-t border-border pt-4">
@@ -124,8 +124,8 @@ export function ClipDisplay({ clips }: { clips: ClipWithUploadedFile[] }) {
         <div key={videoId} className="space-y-6">
           <div className="flex items-baseline justify-between border-b border-white/20 pb-2">
             <div className="flex items-baseline gap-4">
-              <h3 className="font-display text-2xl uppercase font-bold">{videoName}</h3>
-              <span className="font-mono text-xs text-muted-foreground">{new Date(videoDate).toLocaleDateString()}</span>
+              <h3 className="font-display text-lg uppercase font-bold truncate max-w-[300px]" title={videoName}>{videoName}</h3>
+              <span className="font-mono text-xs text-muted-foreground shrink-0">{new Date(videoDate).toLocaleDateString()}</span>
             </div>
             <span className="font-mono text-xs uppercase tracking-widest text-primary">{videoClips.length} ASSETS</span>
           </div>
