@@ -34,15 +34,8 @@ export default function HomePage() {
       <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 border-b border-white/10">
         <SwissGrid>
           <div className="col-span-4 md:col-span-6 flex flex-col justify-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center space-x-2 border border-primary/20 bg-primary/5 px-3 py-1 mb-8 w-fit"
-            >
-              <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-              <span className="text-[10px] uppercase tracking-widest font-bold text-primary">v2.0 System Online</span>
-            </motion.div>
+
+            {/* REMOVED v2.0 System Online badge as requested */}
 
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
@@ -90,27 +83,7 @@ export default function HomePage() {
         </SwissGrid>
       </section>
 
-      {/* REPLACED SOCIAL PROOF WITH STATS (Trusted By removed) */}
-      <div className="border-b border-white/10 bg-white/[0.02] py-12">
-        <SwissGrid>
-          <div className="col-span-4 md:col-span-12 flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="flex gap-12 mx-auto md:mx-0 w-full justify-around">
-              <div className="text-center">
-                <p className="font-display text-3xl font-bold">100k+</p>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Clips Generated</p>
-              </div>
-              <div className="text-center">
-                <p className="font-display text-3xl font-bold">98%</p>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Viral Accuracy</p>
-              </div>
-              <div className="text-center">
-                <p className="font-display text-3xl font-bold">~12s</p>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Processing Time</p>
-              </div>
-            </div>
-          </div>
-        </SwissGrid>
-      </div>
+      {/* REMOVED STATS SECTION (100k+, 98%, ~12s) as requested */}
 
       {/* HOW IT WORKS */}
       <SwissSection id="how-it-works" className="py-32">
@@ -122,9 +95,9 @@ export default function HomePage() {
           </div>
           <div className="col-span-4 md:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { icon: UploadCloud, title: "1. Upload", desc: "Drop your standard 16:9 Youtube videos or podcast recordings." },
+              { icon: UploadCloud, title: "1. Upload", desc: "Drop your standard 16:9 videos or podcast recordings." }, // Removed "Youtube"
               { icon: Layers, title: "2. Analyze", desc: "AI identifies hooks, speakers, and viral moments automatically." },
-              { icon: Smartphone, title: "3. Export", desc: "Get perfectly framed 9:16 vertical shorts ready for TikTok." }
+              { icon: Smartphone, title: "3. Export", desc: "Get perfectly framed 9:16 vertical shorts ready for publishing." } // Removed "TikTok"
             ].map((step, i) => (
               <div key={i} className="group border border-white/10 bg-white/5 p-8 hover:border-primary/50 transition-colors relative overflow-hidden">
                 <div className="text-5xl font-display font-bold text-white/5 absolute top-4 right-4">{i + 1}</div>
@@ -163,7 +136,7 @@ export default function HomePage() {
               <Globe className="w-8 h-8 text-white mb-4" />
               <div>
                 <h3 className="font-display text-xl uppercase font-bold mb-2">Auto-Captioning</h3>
-                <p className="text-xs text-muted-foreground">97% accuracy transcription in 30+ languages.</p>
+                <p className="text-xs text-muted-foreground">High accuracy transcription in 30+ languages.</p> {/* Removed "97%" */}
               </div>
             </div>
 
@@ -184,10 +157,10 @@ export default function HomePage() {
         <SwissGrid>
           <div className="col-span-4 md:col-span-12 text-center">
             <h2 className="font-display text-5xl md:text-8xl uppercase font-bold tracking-tighter mb-8 text-transparent bg-clip-text bg-gradient-to-b from-white to-white/50">
-              Ready to Scale?
+              Ready to Create?
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto mb-12 text-lg">
-              Join the new standard of content creation. Produce a month's worth of shorts in an afternoon.
+              Join the new standard of content creation. Produce a month's worth of content in an afternoon.
             </p>
             <Link href="/signup">
               <Button size="lg" className="h-16 px-12 text-lg rounded-none uppercase font-bold tracking-widest bg-white text-black hover:bg-white/90">
@@ -195,7 +168,7 @@ export default function HomePage() {
               </Button>
             </Link>
             <p className="mt-6 text-[10px] uppercase tracking-widest text-muted-foreground">
-              Free 500MB Upload Credit • No Card Required
+              No Card Required
             </p>
           </div>
         </SwissGrid>
@@ -221,15 +194,15 @@ export default function HomePage() {
           <div className="col-span-2 md:col-span-2 mt-8 md:mt-0">
             <h4 className="text-[10px] uppercase tracking-widest font-bold mb-4 text-white">Legal</h4>
             <ul className="space-y-2 text-xs text-muted-foreground">
-              <li><Link href="#" className="hover:text-primary">Privacy</Link></li>
-              <li><Link href="#" className="hover:text-primary">Terms</Link></li>
+              <li><Link href="/privacy" className="hover:text-primary">Privacy</Link></li>
+              <li><Link href="/terms" className="hover:text-primary">Terms</Link></li>
             </ul>
           </div>
           <div className="col-span-2 md:col-span-2 mt-8 md:mt-0">
             <h4 className="text-[10px] uppercase tracking-widest font-bold mb-4 text-white">Social</h4>
             <ul className="space-y-2 text-xs text-muted-foreground">
-              <li><Link href="#" className="hover:text-primary">Twitter</Link></li>
-              <li><Link href="#" className="hover:text-primary">GitHub</Link></li>
+              <li><Link href="https://x.com/Magframed" target="_blank" rel="noopener noreferrer" className="hover:text-primary">Twitter</Link></li>
+              <li><Link href="https://github.com/sarthakHarshe" target="_blank" rel="noopener noreferrer" className="hover:text-primary">GitHub</Link></li>
             </ul>
           </div>
           <div className="col-span-4 md:col-span-12 mt-12 pt-8 border-t border-white/10 text-center text-[10px] uppercase tracking-widest text-muted-foreground">

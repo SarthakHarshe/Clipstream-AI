@@ -284,6 +284,9 @@ export function DashboardClient({ uploadedFiles, clips }: DashboardClientProps) 
                                 We are not affiliated with YouTube. You are responsible for any content you download.
                                 We do not store your credentials. This process uses <code className="bg-white/10 px-1 py-0.5 rounded text-white">yt-dlp</code> locally on our secure servers.
                               </p>
+                              <p className="text-xs text-muted-foreground leading-relaxed pt-2 border-t border-white/5 mt-2">
+                                <strong>Tip:</strong> Use the <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflccpebjkdjlfj" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Get cookies.txt LOCALLY</a> Chrome extension to easily export your cookies for this tool. We are not affiliated with this extension.
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -414,7 +417,7 @@ function NavItem({ active, onClick, icon, label, badge }: { active: boolean, onC
     >
       <span className="mr-3">{icon}</span>
       <span className="uppercase tracking-widest text-xs font-bold hidden md:inline-block">{label}</span>
-      {badge && badge > 0 && (
+      {(badge ?? 0) > 0 && (
         <span className="ml-auto bg-primary text-black text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full">
           {badge}
         </span>
