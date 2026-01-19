@@ -10,7 +10,7 @@ import z from "zod";
 
 import { Button } from "./ui/button";
 import Dropzone, { type DropzoneState } from "shadcn-dropzone";
-import { Loader2, UploadCloud, Film, LayoutGrid, Clock, Youtube, Settings, Check, AlertCircle, FileVideo } from "lucide-react";
+import { Loader2, UploadCloud, Film, LayoutGrid, Clock, Youtube, Settings, Check, AlertCircle, FileVideo, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ClipDisplay } from "./clip-display";
 import { generateUploadUrl } from "~/actions/s3";
@@ -267,14 +267,29 @@ export function DashboardClient({ uploadedFiles, clips }: DashboardClientProps) 
                         {ytErrors.url && <p className="text-xs text-red-500">{ytErrors.url.message}</p>}
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex justify-between">
+                      <div className="space-y-4">
+                        <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex justify-between items-center">
                           <span>Cookies.txt (Required)</span>
-                          <a href="#" className="text-primary hover:underline">Guide</a>
+                          <a href="https://github.com/yt-dlp/yt-dlp#how-do-i-pass-cookies-to-yt-dlp" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3" /> Guide
+                          </a>
                         </label>
+
+                        <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-none">
+                          <div className="flex gap-3">
+                            <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0" />
+                            <div className="space-y-2">
+                              <p className="text-[11px] font-bold uppercase text-yellow-500 tracking-wide">Disclaimer</p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                We are not affiliated with YouTube. You are responsible for any content you download.
+                                We do not store your credentials. This process uses <code className="bg-white/10 px-1 py-0.5 rounded text-white">yt-dlp</code> locally on our secure servers.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
                         <input type="file" accept=".txt" onChange={(e) => setCookiesFile(e.target.files?.[0] || null)} className="block w-full text-xs text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-none file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-white hover:file:bg-white/20 cursor-pointer" disabled={ytLoading} />
                       </div>
-
                       <Button type="submit" disabled={ytLoading || !cookiesFile} className="w-full h-12 rounded-none bg-red-600 hover:bg-red-700 text-white uppercase font-bold tracking-widest text-xs">
                         {ytLoading ? "Importing..." : "Run Import"}
                       </Button>

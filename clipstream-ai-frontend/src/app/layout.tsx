@@ -35,6 +35,10 @@ const inter = Inter({
  *
  * @param children - The page content to be rendered inside the layout
  */
+import { Providers } from "~/components/providers";
+
+// ... existing code ...
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -43,7 +47,9 @@ export default function RootLayout({
     // The font variable is applied to enable CSS custom properties
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable}`}>
       {/* Body element that contains all page content */}
-      <body suppressHydrationWarning={true}>{children}</body>
+      <body suppressHydrationWarning={true}>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
