@@ -20,4 +20,4 @@ pysubs2
 boto3
 fastapi[standard]
 whisperx
-yt-dlp>=2024.08.06
+yt-dlp[default]>=2024.08.06

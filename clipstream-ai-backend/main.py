@@ -119,11 +119,16 @@ image = (modal.Image.from_registry(
             "wget",             # File downloading utility
             "libcudnn8",        # NVIDIA cuDNN for deep learning acceleration
             "libcudnn8-dev",    # Development headers for cuDNN
-            "nodejs",           # JavaScript runtime for yt-dlp n-parameter challenge
-            "npm"               # Node package manager (optional but useful)
+            "curl",             # Required for Deno installation
+            "unzip"             # Required for Deno installation
         ])
         .pip_install_from_requirements("requirements.txt")
         .run_commands([
+            # Install Deno (recommended JS runtime for yt-dlp)
+            "curl -fsSL https://deno.land/install.sh | sh",
+            # Add Deno to PATH for all users
+            "cp /root/.deno/bin/deno /usr/local/bin/deno",
+            # Install fonts
             "mkdir -p /usr/share/fonts/truetype/custom",
             "wget -O /usr/share/fonts/truetype/custom/Anton-Regular.ttf https://fonts.gstatic.com/s/anton/v23/1Ptgg87LROyAm3Kz-Co.ttf",
             "fc-cache -f -v"
