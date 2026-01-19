@@ -1015,10 +1015,12 @@ class clipstream_ai:
         Raises:
             Exception: If Gemini API call fails
         """
-        try:
-            response = self.gemini_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents="""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.gemini_client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents="""
     This is a podcast video transcript consisting of word, along with each words's start and end time. I am looking to create clips between a minimum of 30 and maximum of 60 seconds long. The clip should never exceed 60 seconds.
 
     Your task is to find and extract stories, or question and their corresponding answers from the transcript.
@@ -1039,12 +1041,18 @@ class clipstream_ai:
     If there are no valid clips to extract, the output should be an empty list [], in JSON format. Also readable by json.loads() in Python.
 
     The transcript is as follows:\n\n""" + str(transcript)
-            )
-            print(f"Identified moments response: {response.text}")
-            return response.text
-        except Exception as e:
-            print(f"[ERROR] Gemini API call failed for clips: {e}")
-            return "[]"
+                )
+                print(f"Identified moments response: {response.text}")
+                return response.text
+            except Exception as e:
+                print(f"[ERROR] Gemini API call failed for clips (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** (attempt + 1)  # Exponential backoff: 2s, 4s, 8s
+                    print(f"[INFO] Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"[ERROR] All {max_retries} retry attempts failed for Gemini API")
+                    return "[]"
 
     def identify_trailer_moments(self, transcript: dict):
         """
