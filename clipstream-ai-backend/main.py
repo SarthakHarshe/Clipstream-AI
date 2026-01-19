@@ -986,10 +986,13 @@ class clipstream_ai:
 
         if "word_segments" in result:
             for word_segment in result["word_segments"]:
+                # Skip segments without required timestamps (WhisperX sometimes omits them)
+                if "start" not in word_segment or "end" not in word_segment:
+                    continue
                 segments.append({
                     "start": word_segment["start"],
                     "end": word_segment["end"],
-                    "word": word_segment["word"],
+                    "word": word_segment.get("word", ""),
                 })
 
         return json.dumps(segments)
