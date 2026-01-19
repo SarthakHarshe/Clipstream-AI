@@ -118,7 +118,9 @@ image = (modal.Image.from_registry(
             "libgl1-mesa-glx",  # OpenGL libraries for computer vision
             "wget",             # File downloading utility
             "libcudnn8",        # NVIDIA cuDNN for deep learning acceleration
-            "libcudnn8-dev"     # Development headers for cuDNN
+            "libcudnn8-dev",    # Development headers for cuDNN
+            "nodejs",           # JavaScript runtime for yt-dlp n-parameter challenge
+            "npm"               # Node package manager (optional but useful)
         ])
         .pip_install_from_requirements("requirements.txt")
         .run_commands([
