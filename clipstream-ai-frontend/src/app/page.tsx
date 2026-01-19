@@ -1,425 +1,242 @@
-/**
- * ClipStream AI Landing Page
- *
- * A modern, Apple Liquid Glass-inspired landing page that showcases the ClipStream AI
- * platform's capabilities for automated video clip generation. Features advanced
- * animations, interactive components, and professional user experience design.
- *
- * This page demonstrates the platform's ability to transform long-form content into
- * viral clips using AI-powered processing, smart clipping, mobile optimization,
- * and automatic subtitle generation.
- *
- * @author ClipStream AI Team
- * @version 1.0.0
- */
-
 "use client";
 
-// React and Next.js imports
 import Link from "next/link";
-import { useRef } from "react";
-
-// Animation and motion libraries
-import { motion, useScroll, useTransform } from "framer-motion";
-
-// UI components
 import { Button } from "~/components/ui/button";
+import { ArrowRight, Check, UploadCloud, Zap, Smartphone, Layers, ShieldCheck, Globe } from "lucide-react";
+import { SwissGrid, SwissSection } from "~/components/ui/swiss-grid";
+import { motion } from "framer-motion";
+import { SplitVideoAnimation } from "~/components/landing/split-video-animation";
 
-// Icons
-import { Bot, Scissors, Smartphone, MessageSquare } from "lucide-react";
-
-// Custom components
-import CurvedLoop from "~/components/CurvedLoop";
-import MagicBento from "~/components/MagicBento";
-import SpotlightCard from "~/components/SpotlightCard";
-import Aurora from "~/components/Aurora";
-import HeroAnimation from "~/components/HeroAnimation";
-import NavHeader from "~/components/NavHeader";
-
-/**
- * Liquid Glass Hero Component
- *
- * Creates a stunning hero section with liquid glass effects, animated backgrounds,
- * and compelling call-to-action elements. Features parallax scrolling effects
- * and smooth animations for an engaging user experience.
- *
- * @returns JSX.Element - The hero section component
- */
-function LiquidGlassHero() {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Configure scroll-based animations
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end start"],
-  });
-
-  // Transform scroll progress into visual effects
-  const y = useTransform(scrollYProgress, [0, 1], ["0%", "50%"]);
-  const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
-
-  return (
-    <motion.div
-      ref={containerRef}
-      className="relative flex min-h-screen items-center justify-center overflow-hidden pt-24 md:pt-16"
-      style={{ y, opacity }}
-    >
-      {/* Aurora Background - Creates dynamic color gradients */}
-      <div className="absolute inset-0 z-0">
-        <Aurora
-          colorStops={["#3A29FF", "#FF94B4", "#6366f1"]}
-          blend={0.3}
-          amplitude={0.8}
-          speed={0.3}
-        />
-      </div>
-
-      {/* Liquid Glass Overlay - Adds depth and glass effect */}
-      <div className="absolute inset-0 z-10 bg-gradient-to-br from-black/40 via-transparent to-black/20" />
-
-      {/* Main Content Container */}
-      <div className="relative z-20 mx-auto max-w-7xl px-4">
-        <div className="grid min-h-[80vh] items-center gap-8 md:grid-cols-1 lg:grid-cols-2 lg:gap-16">
-          {/* Left Column - Text Content */}
-          <div className="flex flex-col justify-center text-center lg:pr-8 lg:text-left">
-            {/* Welcome Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="mb-8"
-            >
-              <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-6 py-3 text-sm font-medium text-white/90 backdrop-blur-md">
-                ✨ Welcome to the Future of Content Creation
-              </div>
-            </motion.div>
-
-            {/* Main Headline */}
-            <motion.h1
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 1,
-                delay: 0.2,
-                ease: [0.25, 0.46, 0.45, 0.94],
-              }}
-              className="mb-8 text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl lg:text-7xl"
-            >
-              <span className="block">Transform Your</span>
-              <span className="block bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Content Journey
-              </span>
-            </motion.h1>
-
-            {/* Subtitle */}
-            <motion.p
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1, delay: 0.4 }}
-              className="mx-auto mb-12 max-w-2xl text-lg leading-relaxed text-white/70 sm:text-xl lg:mx-0"
-            >
-              AI-powered platform that automatically converts your long-form
-              content into viral clips with intelligent processing and seamless
-              workflows.
-            </motion.p>
-
-            {/* Call-to-Action Buttons */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1, delay: 0.6 }}
-              className="flex flex-col justify-center gap-4 sm:flex-row lg:justify-start"
-            >
-              <Link href="/signup">
-                <Button className="w-full sm:w-auto rounded-full bg-white px-6 py-3 text-base font-semibold text-black shadow-lg transition-all duration-300 hover:bg-gray-100 hover:shadow-xl sm:px-8 sm:py-4 sm:text-lg">
-                  Start Creating
-                </Button>
-              </Link>
-              <Link href="/signup">
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto rounded-full border-white/30 px-6 py-3 text-base font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:bg-white/10 sm:px-8 sm:py-4 sm:text-lg"
-                >
-                  Try It Now - Sign Up Free
-                </Button>
-              </Link>
-            </motion.div>
-          </div>
-
-          {/* Right Column - Hero Animation (Hidden on mobile for performance) */}
-          <div className="hidden md:flex items-center justify-center lg:justify-start lg:pl-8">
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{
-                duration: 1,
-                delay: 0.8,
-                ease: [0.25, 0.46, 0.45, 0.94],
-              }}
-              className="w-full max-w-lg"
-            >
-              <HeroAnimation className="w-full" />
-            </motion.div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-/**
- * Floating Feature Cards Component
- *
- * Displays key platform features in an animated grid layout with hover effects
- * and gradient icons. Each card showcases a different aspect of the ClipStream AI
- * platform's capabilities.
- *
- * @returns JSX.Element - The feature cards grid
- */
-function FloatingFeatureCards() {
-  // Feature data with icons, descriptions, and gradient colors
-  const features = [
-    {
-      title: "AI-Powered Processing",
-      description: "Advanced AI transcription and content analysis",
-      icon: Bot,
-      gradient: "from-purple-500 to-blue-600",
-    },
-    {
-      title: "Smart Clipping",
-      description: "Automatically generates engaging 30-60s clips",
-      icon: Scissors,
-      gradient: "from-blue-500 to-teal-600",
-    },
-    {
-      title: "Mobile Optimized",
-      description: "Perfect vertical videos with smart framing",
-      icon: Smartphone,
-      gradient: "from-teal-500 to-green-600",
-    },
-    {
-      title: "Auto Subtitles",
-      description: "Word-perfect subtitles with precise timing",
-      icon: MessageSquare,
-      gradient: "from-green-500 to-yellow-600",
-    },
-  ];
-
-  return (
-    <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 md:grid-cols-2 lg:grid-cols-4">
-      {features.map((feature, index) => (
-        <motion.div
-          key={feature.title}
-          initial={{ opacity: 0, y: 60 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: index * 0.1 }}
-          viewport={{ once: true }}
-          whileHover={{ y: -8, scale: 1.02 }}
-          className="group"
-        >
-          <SpotlightCard className="h-full border-white/10 bg-black/40 p-6 backdrop-blur-xl">
-            {/* Feature Icon with Gradient Background */}
-            <div
-              className={`h-12 w-12 rounded-xl bg-gradient-to-r ${feature.gradient} mb-4 flex items-center justify-center transition-transform duration-300 group-hover:scale-110`}
-            >
-              <feature.icon className="h-6 w-6 text-white" />
-            </div>
-
-            {/* Feature Title */}
-            <h3 className="mb-3 text-xl font-semibold text-white">
-              {feature.title}
-            </h3>
-
-            {/* Feature Description */}
-            <p className="leading-relaxed text-white/70">
-              {feature.description}
-            </p>
-          </SpotlightCard>
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Call-to-Action Section with Curved Loop Background
- *
- * Creates an engaging CTA section with animated background elements and
- * compelling messaging to encourage user sign-ups. Features a curved
- * loop animation and gradient buttons.
- *
- * @returns JSX.Element - The CTA section component
- */
-function CTASection() {
-  return (
-    <div className="relative">
-      {/* Animated Background Loop */}
-      <div className="absolute inset-0 opacity-20">
-        <CurvedLoop
-          marqueeText="Get Started Today ✦ Transform Your Content ✦ AI-Powered ✦ Professional Results ✦"
-          speed={1}
-          curveAmount={200}
-          direction="right"
-          interactive={false}
-          className="text-white/30"
-        />
-      </div>
-
-      {/* Main Content */}
-      <div className="relative z-10 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-          className="mx-auto max-w-4xl px-4 text-center"
-        >
-          {/* Section Title */}
-          <h2 className="mb-8 text-4xl font-bold text-white md:text-6xl">
-            Ready to Transform Your Content?
-          </h2>
-
-          {/* Section Description */}
-          <p className="mx-auto mb-12 max-w-2xl text-lg text-white/70 sm:text-xl">
-            Join thousands of creators who are already using ClipStream AI to
-            create engaging content and grow their audience.
-          </p>
-
-          {/* Primary CTA Button */}
-          <div className="flex flex-col justify-center gap-4 sm:flex-row">
-            <Link href="/signup">
-              <Button className="w-full sm:w-auto rounded-full bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-4 text-base font-semibold text-white shadow-2xl transition-all duration-300 hover:scale-105 hover:from-purple-700 hover:to-blue-700 hover:shadow-purple-500/25 sm:px-8 sm:py-5 sm:text-lg md:px-12 md:py-6 md:text-xl">
-                <span className="sm:hidden">Get Started Today</span>
-                <span className="hidden sm:inline">Create Account & Get Started Today</span>
-              </Button>
-            </Link>
-          </div>
-
-          {/* Trust Indicators */}
-          <p className="mt-6 text-sm text-white/50">
-            No credit card required • Free trial available
-          </p>
-
-          {/* Creator Attribution */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            transition={{ duration: 1, delay: 0.5 }}
-            viewport={{ once: true }}
-            className="mt-12 text-center"
-          >
-            <p className="text-xs text-white/30">
-              Crafted with <span className="text-purple-400">💜</span> by{" "}
-              <Link
-                href="https://github.com/SarthakHarshe"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-white/50 transition-colors duration-300 hover:text-purple-400"
-              >
-                Sarthak Harshe
-              </Link>
-            </p>
-          </motion.div>
-        </motion.div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * ClipStream AI Landing Page - Main Component
- *
- * Modern, clean landing page following Apple's Liquid Glass design principles
- * and Awwwards best practices. Features React Bits components for advanced
- * interactions and professional user experience.
- *
- * The page is structured with:
- * - Navigation header
- * - Hero section with liquid glass effects
- * - Features showcase with animated cards
- * - How it works section with interactive bento grid
- * - Call-to-action section with curved animations
- *
- * @returns JSX.Element - The complete landing page
- */
 export default function HomePage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-black">
-      {/* Navigation Header */}
-      <NavHeader />
+    <main className="min-h-screen bg-background text-foreground overflow-x-hidden selection:bg-primary selection:text-white">
+      {/* HEADER */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+        <SwissGrid className="py-4" showLines={false}>
+          <div className="col-span-4 md:col-span-3 flex items-center">
+            <span className="font-display font-bold text-xl tracking-tighter uppercase">Clipstream.</span>
+          </div>
+          <div className="col-span-0 md:col-span-6 hidden md:flex items-center justify-center gap-8">
+            <Link href="#features" className="text-xs uppercase tracking-widest hover:text-primary transition-colors font-medium">Features</Link>
+            <Link href="#how-it-works" className="text-xs uppercase tracking-widest hover:text-primary transition-colors font-medium">Process</Link>
+            <Link href="#pricing" className="text-xs uppercase tracking-widest hover:text-primary transition-colors font-medium">Pricing</Link>
+          </div>
+          <div className="col-span-4 md:col-span-3 flex justify-end gap-4 items-center">
+            <Link href="/login" className="text-xs uppercase tracking-widest font-bold hover:text-primary transition-colors">Sign In</Link>
+            <Link href="/signup">
+              <Button size="sm" className="rounded-none uppercase text-[10px] h-9 font-bold tracking-widest">Get Started</Button>
+            </Link>
+          </div>
+        </SwissGrid>
+      </header>
 
-      {/* Hero Section with Liquid Glass Effects */}
-      <LiquidGlassHero />
+      {/* HERO SECTION */}
+      <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 border-b border-white/10">
+        <SwissGrid>
+          <div className="col-span-4 md:col-span-6 flex flex-col justify-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="inline-flex items-center space-x-2 border border-primary/20 bg-primary/5 px-3 py-1 mb-8 w-fit"
+            >
+              <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              <span className="text-[10px] uppercase tracking-widest font-bold text-primary">v2.0 System Online</span>
+            </motion.div>
 
-      {/* Features Section */}
-      <section
-        id="features"
-        className="relative bg-gradient-to-b from-black to-gray-900 py-24"
-      >
-        <div className="mx-auto max-w-7xl px-4">
-          {/* Section Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="mb-20 text-center"
-          >
-            <h2 className="mb-6 text-4xl font-bold text-white md:text-5xl">
-              Powerful Features
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="font-display text-5xl md:text-7xl lg:text-8xl font-bold uppercase tracking-tight leading-[0.9] mb-8"
+            >
+              Turn Long Video<br />
+              Into <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400">Viral Shorts</span>.
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="text-lg md:text-xl text-muted-foreground max-w-2xl leading-relaxed mb-10"
+            >
+              The enterprise-grade AI engine that identifies viral moments, reframes for vertical, and generates captions automatically.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="flex flex-col sm:flex-row gap-4"
+            >
+              <Link href="/signup">
+                <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-sm rounded-none uppercase font-bold tracking-widest bg-primary hover:bg-primary/90 text-white">
+                  Start Creating Free
+                  <ArrowRight className="ml-2 w-4 h-4" />
+                </Button>
+              </Link>
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center justify-center sm:justify-start h-14 px-4 border border-white/10">
+                <Check className="w-3 h-3 text-green-500 mr-2" /> No credit card required
+              </p>
+            </motion.div>
+          </div>
+
+          {/* Animation Section */}
+          <div className="col-span-4 md:col-span-6 relative mt-12 md:mt-0 flex items-center justify-center">
+            <div className="w-full border border-white/10 bg-white/[0.02]">
+              <SplitVideoAnimation />
+            </div>
+          </div>
+        </SwissGrid>
+      </section>
+
+      {/* REPLACED SOCIAL PROOF WITH STATS (Trusted By removed) */}
+      <div className="border-b border-white/10 bg-white/[0.02] py-12">
+        <SwissGrid>
+          <div className="col-span-4 md:col-span-12 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="flex gap-12 mx-auto md:mx-0 w-full justify-around">
+              <div className="text-center">
+                <p className="font-display text-3xl font-bold">100k+</p>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Clips Generated</p>
+              </div>
+              <div className="text-center">
+                <p className="font-display text-3xl font-bold">98%</p>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Viral Accuracy</p>
+              </div>
+              <div className="text-center">
+                <p className="font-display text-3xl font-bold">~12s</p>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Processing Time</p>
+              </div>
+            </div>
+          </div>
+        </SwissGrid>
+      </div>
+
+      {/* HOW IT WORKS */}
+      <SwissSection id="how-it-works" className="py-32">
+        <SwissGrid>
+          <div className="col-span-4 md:col-span-4 mb-16 md:mb-0">
+            <span className="text-primary text-xs uppercase tracking-widest font-bold block mb-4">Workflow</span>
+            <h2 className="font-display text-4xl md:text-5xl uppercase font-bold leading-none mb-6">From Long<br />To Short<br />In Seconds.</h2>
+            <p className="text-muted-foreground text-sm max-w-sm">Our automated pipeline handles the complex editing decisions so you can focus on distribution.</p>
+          </div>
+          <div className="col-span-4 md:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { icon: UploadCloud, title: "1. Upload", desc: "Drop your standard 16:9 Youtube videos or podcast recordings." },
+              { icon: Layers, title: "2. Analyze", desc: "AI identifies hooks, speakers, and viral moments automatically." },
+              { icon: Smartphone, title: "3. Export", desc: "Get perfectly framed 9:16 vertical shorts ready for TikTok." }
+            ].map((step, i) => (
+              <div key={i} className="group border border-white/10 bg-white/5 p-8 hover:border-primary/50 transition-colors relative overflow-hidden">
+                <div className="text-5xl font-display font-bold text-white/5 absolute top-4 right-4">{i + 1}</div>
+                <step.icon className="w-8 h-8 text-primary mb-6" />
+                <h3 className="font-display text-lg uppercase font-bold mb-3">{step.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </SwissGrid>
+      </SwissSection>
+
+      {/* FEATURE GRID (BENTO) */}
+      <SwissSection id="features" className="py-32 bg-white/[0.02]">
+        <SwissGrid>
+          <div className="col-span-4 md:col-span-12 text-center mb-20">
+            <span className="text-primary text-xs uppercase tracking-widest font-bold block mb-4">System Capabilities</span>
+            <h2 className="font-display text-4xl md:text-5xl uppercase font-bold">Everything you need</h2>
+          </div>
+
+          <div className="col-span-4 md:col-span-12 grid grid-cols-1 md:grid-cols-3 grid-rows-2 gap-4 h-[800px] md:h-[600px]">
+            {/* Large Feature 1 */}
+            <div className="md:col-span-2 md:row-span-2 border border-white/10 bg-black relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="p-8 h-full flex flex-col justify-end relative z-10">
+                <div className="bg-primary/20 w-fit p-3 mb-6"><Zap className="w-6 h-6 text-primary" /></div>
+                <h3 className="font-display text-3xl uppercase font-bold mb-4">Active Speaker Detection</h3>
+                <p className="text-muted-foreground max-w-md">Our AI doesn't just crop the center. It tracks faces and active speakers, dynamically cutting between multiple people in a podcast or interview setting.</p>
+              </div>
+              {/* Visual representation */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] border border-white/5 rounded-full animate-[spin_60s_linear_infinite] opacity-20 pointer-events-none" />
+            </div>
+
+            {/* Feature 2 */}
+            <div className="border border-white/10 bg-black p-8 flex flex-col justify-between group hover:border-white/20 transition-colors">
+              <Globe className="w-8 h-8 text-white mb-4" />
+              <div>
+                <h3 className="font-display text-xl uppercase font-bold mb-2">Auto-Captioning</h3>
+                <p className="text-xs text-muted-foreground">97% accuracy transcription in 30+ languages.</p>
+              </div>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="border border-white/10 bg-black p-8 flex flex-col justify-between group hover:border-white/20 transition-colors">
+              <ShieldCheck className="w-8 h-8 text-white mb-4" />
+              <div>
+                <h3 className="font-display text-xl uppercase font-bold mb-2">Copyright Safe</h3>
+                <p className="text-xs text-muted-foreground">Royalty-free music library and asset checking.</p>
+              </div>
+            </div>
+          </div>
+        </SwissGrid>
+      </SwissSection>
+
+      {/* CTA SECTION */}
+      <section className="py-32 border-t border-white/10">
+        <SwissGrid>
+          <div className="col-span-4 md:col-span-12 text-center">
+            <h2 className="font-display text-5xl md:text-8xl uppercase font-bold tracking-tighter mb-8 text-transparent bg-clip-text bg-gradient-to-b from-white to-white/50">
+              Ready to Scale?
             </h2>
-            <p className="mx-auto max-w-2xl text-xl text-white/70">
-              Everything you need to create professional content
+            <p className="text-muted-foreground max-w-xl mx-auto mb-12 text-lg">
+              Join the new standard of content creation. Produce a month's worth of shorts in an afternoon.
             </p>
-          </motion.div>
-
-          {/* Feature Cards Grid */}
-          <FloatingFeatureCards />
-        </div>
+            <Link href="/signup">
+              <Button size="lg" className="h-16 px-12 text-lg rounded-none uppercase font-bold tracking-widest bg-white text-black hover:bg-white/90">
+                Get Started Now
+              </Button>
+            </Link>
+            <p className="mt-6 text-[10px] uppercase tracking-widest text-muted-foreground">
+              Free 500MB Upload Credit • No Card Required
+            </p>
+          </div>
+        </SwissGrid>
       </section>
 
-      {/* How It Works Section with Magic Bento */}
-      <section
-        id="how-it-works"
-        className="relative bg-gradient-to-b from-gray-900 to-black py-16"
-      >
-        {/* Section Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-          className="mb-16 text-center"
-        >
-          <h2 className="mb-6 text-4xl font-bold text-white md:text-5xl">
-            How It Works
-          </h2>
-          <p className="mx-auto max-w-2xl text-xl text-white/70">
-            From upload to viral clips in just four simple steps
-          </p>
-        </motion.div>
-
-        {/* Interactive Magic Bento Grid */}
-        <div className="flex justify-center">
-          <MagicBento
-            textAutoHide={true}
-            enableStars={true}
-            enableSpotlight={true}
-            enableBorderGlow={true}
-            enableTilt={false}
-            enableMagnetism={true}
-            clickEffect={true}
-            spotlightRadius={300}
-            particleCount={8}
-            glowColor="99, 102, 241"
-          />
-        </div>
-      </section>
-
-      {/* Call-to-Action Section */}
-      <section className="relative bg-gradient-to-b from-gray-900 to-black py-16">
-        <CTASection />
-      </section>
+      {/* FOOTER */}
+      <footer className="border-t border-white/10 bg-black py-12">
+        <SwissGrid>
+          <div className="col-span-2 md:col-span-6">
+            <span className="font-display font-bold text-xl uppercase tracking-tighter">Clipstream.</span>
+            <p className="text-xs text-muted-foreground mt-4 max-w-xs">
+              The advanced vertical video formatting engine for modern creators.
+            </p>
+          </div>
+          <div className="col-span-2 md:col-span-2">
+            <h4 className="text-[10px] uppercase tracking-widest font-bold mb-4 text-white">Product</h4>
+            <ul className="space-y-2 text-xs text-muted-foreground">
+              <li><Link href="#features" className="hover:text-primary">Features</Link></li>
+              <li><Link href="#pricing" className="hover:text-primary">Pricing</Link></li>
+              <li><Link href="/login" className="hover:text-primary">Login</Link></li>
+            </ul>
+          </div>
+          <div className="col-span-2 md:col-span-2 mt-8 md:mt-0">
+            <h4 className="text-[10px] uppercase tracking-widest font-bold mb-4 text-white">Legal</h4>
+            <ul className="space-y-2 text-xs text-muted-foreground">
+              <li><Link href="#" className="hover:text-primary">Privacy</Link></li>
+              <li><Link href="#" className="hover:text-primary">Terms</Link></li>
+            </ul>
+          </div>
+          <div className="col-span-2 md:col-span-2 mt-8 md:mt-0">
+            <h4 className="text-[10px] uppercase tracking-widest font-bold mb-4 text-white">Social</h4>
+            <ul className="space-y-2 text-xs text-muted-foreground">
+              <li><Link href="#" className="hover:text-primary">Twitter</Link></li>
+              <li><Link href="#" className="hover:text-primary">GitHub</Link></li>
+            </ul>
+          </div>
+          <div className="col-span-4 md:col-span-12 mt-12 pt-8 border-t border-white/10 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
+            © 2024 Clipstream AI. All systems nominal.
+          </div>
+        </SwissGrid>
+      </footer>
     </main>
   );
 }

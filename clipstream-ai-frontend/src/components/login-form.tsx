@@ -1,86 +1,24 @@
-/**
- * Login Form Component
- *
- * Handles user authentication with email and password credentials.
- * Integrates with NextAuth for secure credential-based login and provides
- * comprehensive user feedback on validation errors and authentication status.
- *
- * Features:
- * - Real-time form validation with Zod schemas
- * - Visual validation indicators
- * - Password visibility toggle
- * - Loading states and error handling
- * - Responsive design with glass morphism
- * - Integration with NextAuth credentials provider
- *
- * @author ClipStream AI Team
- * @version 1.0.0
- */
-
 "use client";
 
-// Utility imports
 import { cn } from "~/lib/utils";
-
-// UI components
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
-import { Label } from "./ui/label";
-import { Input } from "./ui/input";
-import { Button } from "./ui/button";
-
-// Form handling
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-
-// React hooks
 import { useState, useEffect } from "react";
-
-// Navigation
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-// Authentication
 import { signIn } from "next-auth/react";
-
-// Validation schemas
 import { loginSchema, type LoginFormValues } from "~/schemas/auth";
-
-// Animation
 import { motion } from "framer-motion";
+import { Eye, EyeOff, Check, AlertCircle } from "lucide-react";
+import { Button } from "./ui/button";
 
-// Icons
-import { Eye, EyeOff, Check, X, AlertCircle } from "lucide-react";
-
-/**
- * Login Form Component
- *
- * Provides a comprehensive login interface with real-time validation,
- * secure authentication, and user-friendly error handling.
- *
- * @param className - Additional CSS classes for styling
- * @param props - Additional HTML div properties
- * @returns JSX.Element - The complete login form interface
- */
-export function LoginForm({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
-  // Form state management
+export function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
-
-  // Navigation hook
   const router = useRouter();
 
-  // React Hook Form setup with Zod validation
   const {
     register,
     handleSubmit,
@@ -88,38 +26,18 @@ export function LoginForm({
     watch,
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    mode: "onChange", // Enable real-time validation
+    mode: "onChange",
   });
 
-  // Watch email field for validation indicator
   const watchedEmail = watch("email", "");
+  useEffect(() => { setEmail(watchedEmail || ""); }, [watchedEmail]);
 
-  // Update email state when watched value changes
-  useEffect(() => {
-    setEmail(watchedEmail || "");
-  }, [watchedEmail]);
+  const isEmailValid = email && !errors.email && email.includes("@") && email.includes(".");
 
-  // Email validation helper for visual feedback
-  const isEmailValid =
-    email && !errors.email && email.includes("@") && email.includes(".");
-
-  /**
-   * Form submission handler for login authentication
-   *
-   * Handles the complete login workflow including:
-   * 1. Form validation
-   * 2. NextAuth credential authentication
-   * 3. Error handling and user feedback
-   * 4. Successful login redirection
-   *
-   * @param data - Validated form data from Zod schema
-   */
   const onSubmit = async (data: LoginFormValues) => {
     try {
       setIsSubmitting(true);
       setError(null);
-
-      // Use NextAuth credentials provider to authenticate
       const result = await signIn("credentials", {
         email: data.email,
         password: data.password,
@@ -127,180 +45,125 @@ export function LoginForm({
       });
 
       if (result?.error) {
-        // Handle specific error types with user-friendly messages
         if (result.error === "CredentialsSignin") {
-          setError(
-            "Invalid email or password. Please check your credentials and try again.",
-          );
+          setError("Invalid credentials.");
         } else {
-          setError("Login failed. Please try again.");
+          setError("Login failed. Try again.");
         }
         return;
       }
-
-      // Redirect to dashboard on successful login
       router.push("/dashboard");
     } catch {
-      setError("An unexpected error occurred. Please try again.");
+      setError("An unexpected error occurred.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      {/* Login Card Container */}
-      <Card className="glass-card border-white/10 bg-white/5">
-        {/* Card Header */}
-        <CardHeader className="space-y-1 p-4 sm:p-6">
-          <CardTitle className="text-xl font-bold text-white sm:text-2xl">
-            Welcome back
-          </CardTitle>
-          <CardDescription className="text-sm text-white/60 sm:text-base">
-            Enter your credentials to access your account
-          </CardDescription>
-        </CardHeader>
+    <div className={cn("w-full max-w-sm mx-auto", className)} {...props}>
+      <div className="border border-border bg-background p-8 space-y-8">
+        <div className="space-y-2 text-center">
+          <h1 className="font-display text-3xl font-bold uppercase tracking-tight text-foreground">
+            Welcome Back
+          </h1>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Enter credentials to access system
+          </p>
+        </div>
 
-        {/* Card Content */}
-        <CardContent className="p-4 sm:p-6">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Email Input Field */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-white">
-                Email
-              </Label>
-              <div className="relative">
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="m@example.com"
-                  className={cn(
-                    "glass-input pr-10",
-                    errors.email && "border-red-400 focus:border-red-400",
-                    isEmailValid && "border-green-400 focus:border-green-400",
-                  )}
-                  {...register("email")}
-                />
-                {/* Email validation indicator */}
-                <div className="absolute top-1/2 right-3 -translate-y-1/2">
-                  {email && (
-                    <>
-                      {isEmailValid ? (
-                        <Check className="h-4 w-4 text-green-400" />
-                      ) : (
-                        <X className="h-4 w-4 text-red-400" />
-                      )}
-                    </>
-                  )}
-                </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
+              Email Address
+            </label>
+            <div className="relative group">
+              <input
+                type="email"
+                placeholder="USER@EXAMPLE.COM"
+                className={cn(
+                  "w-full bg-transparent border-b border-white/20 py-2 font-mono text-sm placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary transition-colors rounded-none",
+                  errors.email && "border-destructive",
+                  isEmailValid && "border-green-500"
+                )}
+                {...register("email")}
+              />
+              <div className="absolute right-0 top-2">
+                {isEmailValid && <Check className="h-4 w-4 text-green-500" />}
               </div>
-              {/* Email error message */}
-              {errors.email && (
-                <motion.p
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center space-x-1 text-sm text-red-400"
-                >
-                  <AlertCircle className="h-3 w-3" />
-                  <span>{errors.email.message}</span>
-                </motion.p>
-              )}
             </div>
-
-            {/* Password Input Field */}
-            <div className="space-y-2">
-              <Label
-                htmlFor="password"
-                className="text-sm font-medium text-white"
-              >
-                Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  className={cn(
-                    "glass-input pr-10",
-                    errors.password && "border-red-400 focus:border-red-400",
-                  )}
-                  {...register("password")}
-                />
-                {/* Password visibility toggle */}
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 text-white/60 hover:text-white"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-              {/* Password error message */}
-              {errors.password && (
-                <motion.p
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center space-x-1 text-sm text-red-400"
-                >
-                  <AlertCircle className="h-3 w-3" />
-                  <span>{errors.password.message}</span>
-                </motion.p>
-              )}
-            </div>
-
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              className="primary-glass-button w-full border-0 py-3 font-medium text-white"
-              disabled={isSubmitting || Object.keys(errors).length > 0}
-            >
-              {isSubmitting ? (
-                <motion.div
-                  className="flex items-center space-x-2"
-                  animate={{ opacity: [1, 0.6, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  <span>Signing in...</span>
-                </motion.div>
-              ) : (
-                "Sign in"
-              )}
-            </Button>
-
-            {/* General Error Display */}
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="rounded-lg border border-red-400/20 bg-red-500/10 p-3"
-              >
-                <p className="flex items-center space-x-2 text-sm text-red-400">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{error}</span>
-                </p>
-              </motion.div>
+            {errors.email && (
+              <p className="text-[10px] text-destructive uppercase tracking-widest font-bold">
+                {errors.email.message}
+              </p>
             )}
-          </form>
-
-          {/* Signup Link */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-white/60">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/signup"
-                className="font-medium text-blue-400 underline hover:text-blue-300"
-              >
-                Sign up
-              </Link>
-            </p>
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
+                Password
+              </label>
+            </div>
+
+            <div className="relative group">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                className={cn(
+                  "w-full bg-transparent border-b border-white/20 py-2 font-mono text-sm placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary transition-colors rounded-none",
+                  errors.password && "border-destructive"
+                )}
+                {...register("password")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-0 top-2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            {errors.password && (
+              <p className="text-[10px] text-destructive uppercase tracking-widest font-bold">
+                {errors.password.message}
+              </p>
+            )}
+          </div>
+
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 p-3 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              <p className="text-[10px] text-destructive uppercase tracking-widest font-bold">{error}</p>
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full h-12 rounded-none uppercase font-bold tracking-widest text-xs"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Authenticating..." : "Establish Session"}
+          </Button>
+        </form>
+
+        <div className="text-center pt-4 border-t border-border">
+          <p className="text-xs text-muted-foreground">
+            No account?{" "}
+            <Link
+              href="/signup"
+              className="text-primary hover:underline uppercase tracking-widest font-bold text-[10px]"
+            >
+              Sign up
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
