@@ -11,9 +11,13 @@ Transform long-form videos into viral-ready short clips using AI. Upload your po
 [![Modal](https://img.shields.io/badge/Modal-Cloud-green?style=flat-square)](https://modal.com/)
 [![Stripe](https://img.shields.io/badge/Stripe-Payments-purple?style=flat-square&logo=stripe)](https://stripe.com/)
 
-[Features](#features) • [Tech Stack](#tech-stack) • [Getting Started](#getting-started) • [Architecture](#architecture) • [License](#license)
-
 </div>
+
+---
+
+## What is Clipstream AI?
+
+Clipstream AI is a full-stack web application that automatically generates short-form video clips from long-form content. Whether you have a 2-hour podcast or a 30-minute YouTube interview, Clipstream AI analyzes the transcript and extracts the most engaging 30-60 second moments — perfect for TikTok, Instagram Reels, and YouTube Shorts.
 
 ---
 
@@ -28,202 +32,78 @@ Transform long-form videos into viral-ready short clips using AI. Upload your po
 - **YouTube Import** — Paste any YouTube URL with cookies for authenticated downloads
 - **Direct Upload** — Upload MP4 files up to 500MB
 - **WhisperX Transcription** — Word-level timestamp accuracy for precise clip extraction
-- **Vertical Video Output** — Automatically generates 9:16 clips for TikTok, Reels, and Shorts
+- **Vertical Video Output** — Automatically generates 9:16 clips optimized for social media
 
 ### 🚀 Production-Ready
-- **GPU-Accelerated** — Modal cloud infrastructure with NVIDIA CUDA support
-- **Credit-Based Billing** — Stripe integration for one-time credit purchases
-- **Real-Time Status** — Auto-refreshing queue with processing status updates
-- **Webhook Notifications** — Instant updates when processing completes
+- **GPU-Accelerated** — Runs on Modal cloud infrastructure with NVIDIA CUDA for fast processing
+- **Credit-Based Billing** — Simple pay-as-you-go pricing via Stripe
+- **Real-Time Status** — Auto-refreshing queue shows processing progress
+- **Webhook Notifications** — Instant updates when clips are ready
+
+---
+
+## How It Works
+
+1. **Upload Your Video**  
+   Drag and drop an MP4 file or paste a YouTube URL. For YouTube, you'll need to provide your `cookies.txt` file for authentication.
+
+2. **Choose Your Mode**  
+   Select **Standard Clips** to extract multiple 30-60 second viral moments, or **AI Trailer** to create a single 60-second highlight reel.
+
+3. **AI Processes Your Video**  
+   - The video is transcribed using WhisperX with word-level timestamps
+   - Google Gemini AI analyzes the transcript to find engaging Q&A moments, stories, and emotional peaks
+   - FFmpeg extracts the identified segments and converts them to vertical 9:16 format
+
+4. **Download Your Clips**  
+   Once processing is complete, your clips appear in the Library. Preview them in-browser and download as MP4 files.
 
 ---
 
 ## 🛠 Tech Stack
 
-### Frontend
-| Technology | Purpose |
-|------------|---------|
-| **Next.js 15** | React framework with App Router |
-| **TypeScript** | Type-safe development |
-| **Tailwind CSS** | Utility-first styling |
-| **Framer Motion** | Smooth animations |
-| **NextAuth.js** | Authentication |
-| **Prisma** | Database ORM |
-
-### Backend
-| Technology | Purpose |
-|------------|---------|
-| **Modal** | Serverless GPU cloud |
-| **Python 3.12** | Backend processing |
-| **WhisperX** | Speech-to-text with alignment |
-| **yt-dlp** | YouTube video downloading |
-| **FFmpeg** | Video manipulation |
-| **Google Gemini** | AI moment identification |
-
-### Infrastructure
-| Service | Purpose |
-|---------|---------|
-| **AWS S3** | Video and clip storage |
-| **PostgreSQL** | Database (via Neon/Supabase) |
-| **Stripe** | Payment processing |
-| **Inngest** | Background job orchestration |
-| **Vercel** | Frontend hosting |
+| Layer | Technologies |
+|-------|--------------|
+| **Frontend** | Next.js 15, TypeScript, Tailwind CSS, Framer Motion |
+| **Backend** | Python 3.12, Modal (serverless GPU), WhisperX, FFmpeg |
+| **AI** | Google Gemini 2.5 Flash |
+| **Database** | PostgreSQL with Prisma ORM |
+| **Storage** | AWS S3 |
+| **Payments** | Stripe |
+| **Auth** | NextAuth.js |
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
-### Prerequisites
+```bash
+# Clone the repository
+git clone https://github.com/SarthakHarshe/Clipstream-AI.git
+cd Clipstream-AI
 
-- Node.js 18+
-- Python 3.12+
-- PostgreSQL database
-- AWS S3 bucket
-- Stripe account
-- Modal account
-- Google Gemini API key
+# Install frontend dependencies
+cd clipstream-ai-frontend
+npm install
 
-### Installation
+# Set up your environment variables (see .env.example)
+cp .env.example .env.local
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/SarthakHarshe/Clipstream-AI.git
-   cd Clipstream-AI
-   ```
+# Initialize the database
+npx prisma generate && npx prisma db push
 
-2. **Install frontend dependencies**
-   ```bash
-   cd clipstream-ai-frontend
-   npm install
-   ```
+# Start the development server
+npm run dev
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your credentials
-   ```
-
-4. **Initialize the database**
-   ```bash
-   npx prisma generate
-   npx prisma db push
-   ```
-
-5. **Start the development server**
-   ```bash
-   npm run dev
-   ```
-
-6. **Deploy the backend (Modal)**
-   ```bash
-   cd ../clipstream-ai-backend
-   pip install -r requirements.txt
-   modal deploy main.py
-   ```
-
-### Environment Variables
-
-```env
-# Database
-DATABASE_URL="postgresql://..."
-
-# Authentication
-AUTH_SECRET="your-auth-secret"
-AUTH_TRUST_HOST=true
-
-# AWS S3
-AWS_ACCESS_KEY_ID="..."
-AWS_SECRET_ACCESS_KEY="..."
-AWS_REGION="us-east-1"
-S3_BUCKET_NAME="clipstream-ai"
-
-# Stripe
-STRIPE_SECRET_KEY="sk_..."
-STRIPE_WEBHOOK_SECRET="whsec_..."
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_..."
-STRIPE_SMALL_CREDIT_PACK="price_..."
-STRIPE_MEDIUM_CREDIT_PACK="price_..."
-STRIPE_LARGE_CREDIT_PACK="price_..."
-
-# Modal Backend
-PROCESS_VIDEO_ENDPOINT="https://..."
-PROCESS_VIDEO_ENDPOINT_AUTH="..."
-
-# Inngest
-INNGEST_SIGNING_KEY="..."
-INNGEST_EVENT_KEY="..."
+# In a separate terminal, deploy the backend
+cd ../clipstream-ai-backend
+pip install -r requirements.txt
+modal deploy main.py
 ```
-
----
-
-## 🏗 Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FRONTEND (Vercel)                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Next.js   │  │  Dashboard  │  │    Billing (Stripe)     │  │
-│  │   App       │──│   Client    │──│    Credit Purchases     │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      BACKEND (Modal Cloud)                       │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   yt-dlp    │  │  WhisperX   │  │    Google Gemini AI     │  │
-│  │  Download   │──│ Transcribe  │──│   Moment Detection      │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-│         │                                      │                 │
-│         ▼                                      ▼                 │
-│  ┌─────────────┐                    ┌─────────────────────────┐  │
-│  │   FFmpeg    │                    │     Clip Generation     │  │
-│  │   Process   │────────────────────│   (Vertical 9:16)       │  │
-│  └─────────────┘                    └─────────────────────────┘  │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        AWS S3 Storage                            │
-│       Original Videos  │  Generated Clips  │  Trailers          │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📁 Project Structure
-
-```
-Clipstream-AI/
-├── clipstream-ai-frontend/          # Next.js frontend
-│   ├── src/
-│   │   ├── app/                     # App Router pages
-│   │   │   ├── dashboard/           # Dashboard & billing
-│   │   │   └── api/                 # API routes
-│   │   ├── components/              # React components
-│   │   ├── actions/                 # Server actions
-│   │   ├── inngest/                 # Background jobs
-│   │   └── server/                  # Auth & database
-│   └── prisma/                      # Database schema
-│
-├── clipstream-ai-backend/           # Modal Python backend
-│   ├── main.py                      # Main processing endpoint
-│   ├── requirements.txt             # Python dependencies
-│   └── asd/                         # Audio processing models
-│
-└── README.md                        # This file
-```
-
----
-
-## 📝 License
-
-This project is proprietary software. All rights reserved.
 
 ---
 
 <div align="center">
 
-**Built with ❤️ by [Sarthak Harshe](https://github.com/SarthakHarshe)**
+**Built by [Sarthak Harshe](https://github.com/SarthakHarshe)**
 
 </div>
