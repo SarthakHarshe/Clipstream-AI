@@ -333,18 +333,6 @@ export function DashboardClient({ uploadedFiles, clips }: DashboardClientProps) 
                     )}
                   </div>
                 </div>
-
-                {/* Mini Status */}
-                <div className="bg-white/5 border border-white/10 p-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">System Status</p>
-                    <p className="font-display font-bold text-green-500 flex items-center mt-1"><span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" /> Operational</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Queue Load</p>
-                    <p className="font-display font-bold">Low</p>
-                  </div>
-                </div>
               </div>
             </motion.div>
           )}
