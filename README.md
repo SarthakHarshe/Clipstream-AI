@@ -1,109 +1,149 @@
-<div align="center">
+# Clipstream AI
 
-# 🎬 Clipstream AI
+Turn long podcasts and interviews into vertical short clips, without doing the editing yourself.
 
-**AI-Powered Video Clip Generator**
+You give it a video (an MP4 upload or a YouTube link). It transcribes the audio, asks Gemini which parts are actually worth clipping, cuts those segments, reframes them to 9:16 by following whoever is speaking, burns in captions, and drops the finished clips in your library.
 
-Transform long-form videos into viral-ready short clips using AI. Upload your podcasts, interviews, or YouTube videos and let our AI identify the most engaging moments.
+I built this to scratch my own itch: scrubbing through a two hour podcast looking for the 45 seconds worth posting is miserable work, and most of it is mechanical.
 
-[![Next.js](https://img.shields.io/badge/Next.js-15.4-black?style=flat-square&logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![Modal](https://img.shields.io/badge/Modal-Cloud-green?style=flat-square)](https://modal.com/)
-[![Stripe](https://img.shields.io/badge/Stripe-Payments-purple?style=flat-square&logo=stripe)](https://stripe.com/)
+## How the pipeline actually works
 
-</div>
+```
+Browser  ──►  Next.js app  ──►  S3 (presigned PUT)
+                  │
+                  ├─► Inngest job: check credits, flip status to "processing"
+                  │        │
+                  │        └─► POST to Modal endpoint (bearer auth)
+                  │                   │
+                  │                   ├─ download video (S3 or yt-dlp)
+                  │                   ├─ ffmpeg: extract 16kHz mono WAV
+                  │                   ├─ WhisperX large-v2 + alignment (word-level timestamps)
+                  │                   ├─ Gemini 2.5 Flash: pick the moments
+                  │                   ├─ per clip: ffmpeg cut, LR-ASD active speaker,
+                  │                   │            1080x1920 reframe, burned-in subtitles
+                  │                   └─ upload clips to S3, POST webhook back
+                  │
+                  └─◄ /api/webhook/modal ─► Inngest: list S3 folder, create Clip rows,
+                                            deduct credits, mark "processed"
+```
 
----
+The frontend never waits on the GPU. Modal calls back when it is done, which is why a fifteen minute job does not blow up a serverless function.
 
-## What is Clipstream AI?
+### The two modes
 
-Clipstream AI is a full-stack web application that automatically generates short-form video clips from long-form content. Whether you have a 2-hour podcast or a 30-minute YouTube interview, Clipstream AI analyzes the transcript and extracts the most engaging 30-60 second moments — perfect for TikTok, Instagram Reels, and YouTube Shorts.
+**Clips.** Gemini reads the word-level transcript and returns a list of `{start, end}` pairs for question-and-answer exchanges or self-contained stories, 30 to 60 seconds each. The backend processes the first three of those. Costs 1 credit.
 
----
+**AI trailer.** A different prompt asks for 4 to 6 variable-length moments arranged as a narrative arc: opening hook, rising tension, a climax, then a cliffhanger. Those get stitched into a single trailer with transitions. If the trailer prompt comes back empty it falls back to the regular clip moments. Costs 4 credits.
 
-## ✨ Features
+### The reframing bit
 
-### 🎯 AI-Powered Clip Detection
-- **Smart Moment Identification** — Uses Google Gemini to analyze transcripts and identify viral-worthy segments
-- **Question-Answer Extraction** — Automatically detects Q&A pairs and compelling stories
-- **Trailer Generation** — Creates 60-second AI trailers with narrative arc (hook → tension → climax → cliffhanger)
+This is the part I am happiest with. Center-cropping a two-person podcast gives you a great shot of the gap between their heads, so instead each clip runs through [LR-ASD](https://github.com/Junhua-Liao/Light-ASD), vendored under `clipstream-ai-backend/asd/` (MIT licensed, from the CVPR 2023 and IJCV 2025 papers by Junhua Liao et al.). It tracks faces and scores who is actively speaking per frame. The vertical renderer averages those scores over a 60 frame window and crops toward the highest scoring face. When no face is confidently detected it falls back to a scaled and centered frame over a blurred background instead of cropping blind.
 
-### 🎬 Video Processing
-- **YouTube Import** — Paste any YouTube URL with cookies for authenticated downloads
-- **Direct Upload** — Upload MP4 files up to 500MB
-- **WhisperX Transcription** — Word-level timestamp accuracy for precise clip extraction
-- **Vertical Video Output** — Automatically generates 9:16 clips optimized for social media
+Captions come from the same word-level WhisperX output, grouped five words to a line, rendered as ASS subtitles in Anton and burned in with ffmpeg.
 
-### 🚀 Production-Ready
-- **GPU-Accelerated** — Runs on Modal cloud infrastructure with NVIDIA CUDA for fast processing
-- **Credit-Based Billing** — Simple pay-as-you-go pricing via Stripe
-- **Real-Time Status** — Auto-refreshing queue shows processing progress
-- **Webhook Notifications** — Instant updates when clips are ready
+## Repo layout
 
----
+```
+clipstream-ai-frontend/    Next.js 15 app (T3 stack), Prisma, NextAuth, Stripe, Inngest
+clipstream-ai-backend/     Modal app, the whole GPU pipeline lives in main.py
+  └── asd/                 vendored LR-ASD active speaker detection plus weights
+```
 
-## How It Works
+## Stack
 
-1. **Upload Your Video**  
-   Drag and drop an MP4 file or paste a YouTube URL. For YouTube, you'll need to provide your `cookies.txt` file for authentication.
+| Layer | What it is |
+|---|---|
+| Frontend | Next.js 15 (App Router), React 19, TypeScript, Tailwind v4, shadcn/ui, Framer Motion |
+| Auth | NextAuth v5 (beta) with a credentials provider, bcrypt-hashed passwords |
+| Data | PostgreSQL via Prisma |
+| Queue | Inngest, one concurrent job per file and no retries so nothing gets processed twice |
+| Compute | Modal, NVIDIA L40S, CUDA 12.4 base image, 15 minute timeout |
+| ML | WhisperX large-v2, Gemini 2.5 Flash, LR-ASD |
+| Media | ffmpeg, OpenCV, ffmpegcv, pysubs2, yt-dlp |
+| Storage | S3, with presigned URLs for both upload and playback |
+| Payments | Stripe checkout plus a webhook that tops up credits |
 
-2. **Choose Your Mode**  
-   Select **Standard Clips** to extract multiple 30-60 second viral moments, or **AI Trailer** to create a single 60-second highlight reel.
+## Running it locally
 
-3. **AI Processes Your Video**  
-   - The video is transcribed using WhisperX with word-level timestamps
-   - Google Gemini AI analyzes the transcript to find engaging Q&A moments, stories, and emotional peaks
-   - FFmpeg extracts the identified segments and converts them to vertical 9:16 format
+You will need Node 20+, Python 3.12, a PostgreSQL database, an S3 bucket, a Modal account, a Gemini API key, and Stripe test keys.
 
-4. **Download Your Clips**  
-   Once processing is complete, your clips appear in the Library. Preview them in-browser and download as MP4 files.
-
----
-
-## 🛠 Tech Stack
-
-| Layer | Technologies |
-|-------|--------------|
-| **Frontend** | Next.js 15, TypeScript, Tailwind CSS, Framer Motion |
-| **Backend** | Python 3.12, Modal (serverless GPU), WhisperX, FFmpeg |
-| **AI** | Google Gemini 2.5 Flash |
-| **Database** | PostgreSQL with Prisma ORM |
-| **Storage** | AWS S3 |
-| **Payments** | Stripe |
-| **Auth** | NextAuth.js |
-
----
-
-## 🚀 Quick Start
+### Backend
 
 ```bash
-# Clone the repository
-git clone https://github.com/SarthakHarshe/Clipstream-AI.git
-cd Clipstream-AI
-
-# Install frontend dependencies
-cd clipstream-ai-frontend
-npm install
-
-# Set up your environment variables (see .env.example)
-cp .env.example .env.local
-
-# Initialize the database
-npx prisma generate && npx prisma db push
-
-# Start the development server
-npm run dev
-
-# In a separate terminal, deploy the backend
-cd ../clipstream-ai-backend
+cd clipstream-ai-backend
 pip install -r requirements.txt
 modal deploy main.py
 ```
 
----
+Two Modal secrets have to exist before you deploy:
 
-<div align="center">
+- `clipstream-ai-secret` with `GEMINI_API_KEY`, `AUTH_TOKEN`, and AWS credentials for S3
+- `webhook-config` with `WEBHOOK_URL` pointing at `https://your-app/api/webhook/modal`
 
-**Built by [Sarthak Harshe](https://github.com/SarthakHarshe)**
+`AUTH_TOKEN` is the shared secret. The frontend sends it as a bearer token to Modal, and Modal sends the same value back on the completion webhook.
 
-</div>
+One gotcha before you deploy: the S3 bucket name is hardcoded as `clipstream-ai` in the backend's boto3 calls. If you use a different bucket, search `main.py` for it and change it.
+
+### Frontend
+
+```bash
+cd clipstream-ai-frontend
+npm install
+cp .env.example .env
+npx prisma migrate deploy
+npm run dev
+```
+
+In a second terminal, run the Inngest dev server so background jobs actually fire:
+
+```bash
+npm run inngest-dev
+```
+
+The committed `.env.example` is still the stock create-t3-app one and is out of date. The variables the app really validates live in `src/env.js`:
+
+```
+AUTH_SECRET
+DATABASE_URL
+AWS_REGION
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+S3_BUCKET_NAME
+PROCESS_VIDEO_ENDPOINT           # the deployed Modal process_video URL
+PROCESS_VIDEO_ENDPOINT_AUTH      # same value as AUTH_TOKEN above
+STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET
+STRIPE_SMALL_CREDIT_PACK         # Stripe price IDs
+STRIPE_MEDIUM_CREDIT_PACK
+STRIPE_LARGE_CREDIT_PACK
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+BASE_URL
+```
+
+## Using it
+
+Sign up with an email and password. New accounts start with 10 credits.
+
+**Uploading a file.** Drop in an MP4 (the dropzone caps at 500MB). It goes straight to S3 with a presigned URL, so the file never passes through the Next.js server.
+
+**YouTube.** Paste a URL and attach a `cookies.txt` exported from a browser where you are signed in to YouTube. This is not optional. YouTube blocks datacenter IPs, and without cookies yt-dlp fails on the bot check. The cookies file is uploaded to S3, used once, and deleted afterwards. Videos longer than an hour are rejected.
+
+**Watching progress.** The dashboard refreshes itself every 15 seconds. Statuses go `queued`, `processing`, `processed`, or land on `failed` or `no credits`. Credits are only deducted after clips actually land in S3, so a failed job does not cost you anything.
+
+**Getting clips out.** Preview in the browser or download. Playback runs on presigned URLs that expire after an hour, and every request checks that the clip belongs to you.
+
+Credits are bought from the billing page through Stripe checkout, and the top-up happens in the Stripe webhook rather than on redirect, so closing the tab too early does not lose a purchase.
+
+## Known limits
+
+- Transcription and alignment are English only right now (the alignment model is loaded with `language_code="en"`).
+- Clip mode stops at the first three moments per video, mostly to keep runs inside the 15 minute Modal timeout.
+- For trailers, transcripts over 1000 words are trimmed to the first 30 minutes before Gemini sees them.
+- YouTube support depends on `cookies.txt` and on yt-dlp keeping up with YouTube's changes. It has broken and been fixed a few times already, which is why the container ships Deno for yt-dlp's JS challenges.
+- Everything the model picks is a suggestion. Sometimes it clips a boring stretch. That is the nature of the thing.
+
+## License
+
+Not currently open source. The vendored `asd/` directory keeps its original MIT license.
+
+Built by [Sarthak Harshe](https://github.com/SarthakHarshe).
