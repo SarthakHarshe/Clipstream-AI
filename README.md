@@ -100,26 +100,6 @@ In a second terminal, run the Inngest dev server so background jobs actually fir
 npm run inngest-dev
 ```
 
-The committed `.env.example` is still the stock create-t3-app one and is out of date. The variables the app really validates live in `src/env.js`:
-
-```
-AUTH_SECRET
-DATABASE_URL
-AWS_REGION
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-S3_BUCKET_NAME
-PROCESS_VIDEO_ENDPOINT           # the deployed Modal process_video URL
-PROCESS_VIDEO_ENDPOINT_AUTH      # same value as AUTH_TOKEN above
-STRIPE_SECRET_KEY
-STRIPE_WEBHOOK_SECRET
-STRIPE_SMALL_CREDIT_PACK         # Stripe price IDs
-STRIPE_MEDIUM_CREDIT_PACK
-STRIPE_LARGE_CREDIT_PACK
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-BASE_URL
-```
-
 ## Using it
 
 Sign up with an email and password. New accounts start with 10 credits.
